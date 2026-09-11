@@ -1,0 +1,49 @@
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+*.so
+*.so.*
+*.dylib
+*.dll
+*.def
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Build output
+build/
+handsdown
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+*.gcda
+*.gcno
+
+# Dependencies
+*.d
+
+# Compiled tools
+*.stackdump
+
+# macOS
+.DS_Store
