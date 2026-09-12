@@ -3,9 +3,10 @@ CFLAGS ?= -O2 -Wall -Wextra -Wpedantic
 CPPFLAGS += -Iinclude/handsdown
 LDFLAGS ?=
 LDLIBS ?=
+LDLIBS += $(shell pkg-config --libs wayland-client)
 
 BIN := handsdown
-SRC := $(wildcard src/*.c src/input/*.c)
+SRC := $(wildcard src/*.c src/input/*.c src/display/*.c)
 OBJ := $(patsubst src/%.c, build/%.o, $(SRC))
 DEP := $(OBJ:.o=.d)
 

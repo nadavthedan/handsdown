@@ -1,4 +1,4 @@
-#include "input/input.h"
+#include "input.h"
 #include <fcntl.h>
 #include <linux/input-event-codes.h>
 #include <linux/input.h>
