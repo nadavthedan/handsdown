@@ -29,7 +29,7 @@
 
 # Build output
 build/
-handsdown
+handsdown_app
 
 # Debug files
 *.dSYM/

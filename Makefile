@@ -5,7 +5,7 @@ LDFLAGS ?=
 LDLIBS ?=
 LDLIBS += $(shell pkg-config --libs wayland-client)
 
-BIN := handsdown
+BIN := handsdown_app
 SRC := $(wildcard src/*.c src/input/*.c src/display/*.c)
 OBJ := $(patsubst src/%.c, build/%.o, $(SRC))
 DEP := $(OBJ:.o=.d)
