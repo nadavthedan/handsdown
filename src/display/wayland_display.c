@@ -212,3 +212,21 @@ int display_get_monitors(DisplayContext *ctx, Monitor *out_monitors,
   pthread_mutex_unlock(&ctx->lock);
   return to_copy;
 }
+
+int get_focused_monitor_from_pointer(DisplayContext *ctx, int pointer_x,
+                                     int pointer_y) {
+  pthread_mutex_lock(&ctx->lock);
+
+  int focused_index = -1;
+  for (int i = 0; i < ctx->count; i++) {
+    Monitor *m = &ctx->monitors[i];
+    if (pointer_x >= m->x && pointer_x < (m->x + m->width) &&
+        pointer_y >= m->y && pointer_y < (m->y + m->height)) {
+      focused_index = i;
+      break;
+    }
+  }
+
+  pthread_mutex_unlock(&ctx->lock);
+  return focused_index; // Index of the monitor containing the cursor
+}

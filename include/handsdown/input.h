@@ -1,12 +1,13 @@
 #ifndef INPUT_H
 #define INPUT_H
+#include "display.h"
 
 typedef struct {
   int fd_mouse;
   int fd_abs;
 } HybridInput;
 
-HybridInput *input_init(const int screen_w, const int screen_h);
+HybridInput *input_init(void);
 int input_destroy(HybridInput *fd);
 int input_abs_move(const int fd, const int x, const int y);
 int input_rel_move(const int fd, const int x, const int y);

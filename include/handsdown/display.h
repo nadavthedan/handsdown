@@ -37,5 +37,4 @@ void display_listener_stop(DisplayContext *ctx);
 // Thread-safe Getter: Safely copies monitor info to the caller thread
 int display_get_monitors(DisplayContext *ctx, Monitor *out_monitors,
                          int max_out);
-
 #endif

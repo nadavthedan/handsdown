@@ -1,12 +1,12 @@
 CC ?= cc
 CFLAGS ?= -O2 -Wall -Wextra -Wpedantic
-CPPFLAGS += -Iinclude/handsdown
+CPPFLAGS += -Iinclude/handsdown $(shell pkg-config --cflags wayland-client gtk+-3.0 gtk-layer-shell-0)
 LDFLAGS ?=
 LDLIBS ?=
-LDLIBS += $(shell pkg-config --libs wayland-client)
+LDLIBS += $(shell pkg-config --libs wayland-client gtk+-3.0 gtk-layer-shell-0)
 
 BIN := handsdown_app
-SRC := $(wildcard src/*.c src/input/*.c src/display/*.c)
+SRC := $(wildcard src/*.c src/input/*.c src/display/*.c src/overlay/*.c src/modes/*.c)
 OBJ := $(patsubst src/%.c, build/%.o, $(SRC))
 DEP := $(OBJ:.o=.d)
 

@@ -1,31 +1,37 @@
+#include "display.h"
 #include "input.h"
 #include <fcntl.h>
+#include <limits.h>
 #include <linux/input-event-codes.h>
 #include <linux/input.h>
 #include <linux/uinput.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-static void setup_abs_axit(int fd, int axis, int min, int max) {
+#define AXIS_RESOLUTION_MIN 0
+#define AXIS_RESOLUTION_MAX 65535
+
+static void setup_abs_axit(int fd, int axis) {
   ioctl(fd, UI_SET_ABSBIT, axis);
   struct uinput_abs_setup abs_setup = {0};
   abs_setup.code = axis;
-  abs_setup.absinfo.minimum = min;
-  abs_setup.absinfo.maximum = max;
+  abs_setup.absinfo.minimum = AXIS_RESOLUTION_MIN;
+  abs_setup.absinfo.maximum = AXIS_RESOLUTION_MAX;
   abs_setup.absinfo.resolution = 1; // required by libinput
   ioctl(fd, UI_ABS_SETUP, &abs_setup);
 }
 
-static int abs_device_init(const int screen_w, const int screen_h) {
+static int abs_device_init(void) {
   int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
   if (fd < 0)
     return fd;
 
   ioctl(fd, UI_SET_EVBIT, EV_ABS);
-  setup_abs_axit(fd, ABS_X, 0, screen_w);
-  setup_abs_axit(fd, ABS_Y, 0, screen_h);
+  setup_abs_axit(fd, ABS_X);
+  setup_abs_axit(fd, ABS_Y);
 
   ioctl(fd, UI_SET_EVBIT, EV_KEY);
   ioctl(fd, UI_SET_KEYBIT, BTN_TOUCH);
@@ -73,8 +79,7 @@ static int rel_device_init(void) {
   return fd;
 }
 
-HybridInput *input_init(const int screen_w, const int screen_h) {
-
+HybridInput *input_init(void) {
   HybridInput *devices = malloc(sizeof(HybridInput));
   if (!devices)
     return NULL;
@@ -85,7 +90,7 @@ HybridInput *input_init(const int screen_w, const int screen_h) {
     return NULL;
 
   // abs setup
-  devices->fd_abs = abs_device_init(screen_w, screen_h);
+  devices->fd_abs = abs_device_init();
   if (devices->fd_abs < 0) {
     ioctl(devices->fd_mouse, UI_DEV_DESTROY);
     close(devices->fd_mouse);
