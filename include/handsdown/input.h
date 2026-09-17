@@ -2,6 +2,9 @@
 #define INPUT_H
 #include "display.h"
 
+#define AXIS_RESOLUTION_MIN 0
+#define AXIS_RESOLUTION_MAX 65535
+
 typedef struct {
   int fd_mouse;
   int fd_abs;

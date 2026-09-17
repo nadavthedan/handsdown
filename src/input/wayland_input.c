@@ -11,9 +11,6 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-#define AXIS_RESOLUTION_MIN 0
-#define AXIS_RESOLUTION_MAX 65535
-
 static void setup_abs_axit(int fd, int axis) {
   ioctl(fd, UI_SET_ABSBIT, axis);
   struct uinput_abs_setup abs_setup = {0};

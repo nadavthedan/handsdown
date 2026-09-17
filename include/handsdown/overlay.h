@@ -1,6 +1,8 @@
 #ifndef OVERLAY_H
 #define OVERLAY_H
 
+#include "gdk/gdk.h"
+#include "input.h"
 #include <stdbool.h>
 #include <sys/types.h>
 
@@ -18,7 +20,9 @@ typedef struct {
   double height_percent;
   double cell_horizontal_count;
   double cell_vertical_count;
-  struct rgba background_color;
+  struct {
+    struct rgba background_color;
+  } config;
 } GridSection;
 
 typedef struct {
@@ -30,18 +34,32 @@ typedef struct {
 
 typedef struct {
   double border_thickness;
-  bool use_secondary_color;
   struct rgba border_color;
   struct rgba border_secondary_color;
   uint font_size;
   struct rgba font_color;
   struct rgba font_secondary_color;
+} GridConfiguration;
+
+typedef struct {
+  bool use_secondary_color;
   GridSection *grid_sections;
   uint grid_sections_count;
   GridText *grid_texts;
   uint grid_texts_count;
-} GridOptions;
+} GridState;
 
-int overlay_create(GridOptions *options);
+typedef struct GridOverlay GridOverlay;
+
+typedef void (*KeyHandler)(GridOverlay *overlay, guint keyval);
+
+struct GridOverlay {
+  GridConfiguration config;
+  GridState state;
+  KeyHandler key_handler;
+  void *user_data;
+};
+
+int overlay_create(GridOverlay *options);
 
 #endif

@@ -1,5 +1,4 @@
 #include "cairo.h"
-#include "gdk/gdk.h"
 #include "gdk/gdkkeysyms.h"
 #include "glib-object.h"
 #include "gtk/gtkcssprovider.h"
@@ -12,7 +11,7 @@
 #include <stdio.h>
 
 static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
-  GridOptions *grid_options = (GridOptions *)user_data;
+  GridOverlay *grid_overlay = (GridOverlay *)user_data;
   int width = gtk_widget_get_allocated_width(widget);
   int height = gtk_widget_get_allocated_height(widget);
 
@@ -20,8 +19,8 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
   cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
   cairo_paint(cr);
 
-  for (uint i = 0; i < grid_options->grid_sections_count; i++) {
-    GridSection section = grid_options->grid_sections[i];
+  for (uint i = 0; i < grid_overlay->state.grid_sections_count; i++) {
+    GridSection section = grid_overlay->state.grid_sections[i];
 
     double x_start = section.start_x_percent * width / 100;
     double section_width = section.width_percent * width / 100;
@@ -29,27 +28,29 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
     double y_start = section.start_y_percent * height / 100;
     double section_height = section.height_percent * height / 100;
 
-    cairo_set_source_rgba(
-        cr, section.background_color.red, section.background_color.green,
-        section.background_color.blue, section.background_color.alpha);
+    cairo_set_source_rgba(cr, section.config.background_color.red,
+                          section.config.background_color.green,
+                          section.config.background_color.blue,
+                          section.config.background_color.alpha);
     cairo_rectangle(cr, x_start, y_start, section_width, section_height);
     cairo_fill(cr);
   }
 
-  if (!grid_options->use_secondary_color) {
-    cairo_set_source_rgba(
-        cr, grid_options->border_color.red, grid_options->border_color.green,
-        grid_options->border_color.blue, grid_options->border_color.alpha);
+  if (!grid_overlay->state.use_secondary_color) {
+    cairo_set_source_rgba(cr, grid_overlay->config.border_color.red,
+                          grid_overlay->config.border_color.green,
+                          grid_overlay->config.border_color.blue,
+                          grid_overlay->config.border_color.alpha);
   } else {
-    cairo_set_source_rgba(cr, grid_options->border_secondary_color.red,
-                          grid_options->border_secondary_color.green,
-                          grid_options->border_secondary_color.blue,
-                          grid_options->border_secondary_color.alpha);
+    cairo_set_source_rgba(cr, grid_overlay->config.border_secondary_color.red,
+                          grid_overlay->config.border_secondary_color.green,
+                          grid_overlay->config.border_secondary_color.blue,
+                          grid_overlay->config.border_secondary_color.alpha);
   }
-  cairo_set_line_width(cr, grid_options->border_thickness);
+  cairo_set_line_width(cr, grid_overlay->config.border_thickness);
 
-  for (uint i = 0; i < grid_options->grid_sections_count; i++) {
-    GridSection section = grid_options->grid_sections[i];
+  for (uint i = 0; i < grid_overlay->state.grid_sections_count; i++) {
+    GridSection section = grid_overlay->state.grid_sections[i];
 
     double x_start = section.start_x_percent * width / 100;
     double section_width = section.width_percent * width / 100;
@@ -77,27 +78,28 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
 
   PangoLayout *layout = pango_cairo_create_layout(cr);
   char font[64];
-  snprintf(font, sizeof(font), "Monospace %d", grid_options->font_size);
+  snprintf(font, sizeof(font), "Monospace %d", grid_overlay->config.font_size);
   PangoFontDescription *font_desc = pango_font_description_from_string(font);
   pango_layout_set_font_description(layout, font_desc);
   pango_font_description_free(font_desc);
-  for (uint i = 0; i < grid_options->grid_texts_count; i++) {
-    GridText gtext = grid_options->grid_texts[i];
-    if (!grid_options->use_secondary_color) {
-      cairo_set_source_rgba(
-          cr, grid_options->font_color.red, grid_options->font_color.green,
-          grid_options->font_color.blue, grid_options->font_color.alpha);
+  for (uint i = 0; i < grid_overlay->state.grid_texts_count; i++) {
+    GridText gtext = grid_overlay->state.grid_texts[i];
+    if (!grid_overlay->state.use_secondary_color) {
+      cairo_set_source_rgba(cr, grid_overlay->config.font_color.red,
+                            grid_overlay->config.font_color.green,
+                            grid_overlay->config.font_color.blue,
+                            grid_overlay->config.font_color.alpha);
     } else {
-      cairo_set_source_rgba(cr, grid_options->font_secondary_color.red,
-                            grid_options->font_secondary_color.green,
-                            grid_options->font_secondary_color.blue,
-                            grid_options->font_secondary_color.alpha);
+      cairo_set_source_rgba(cr, grid_overlay->config.font_secondary_color.red,
+                            grid_overlay->config.font_secondary_color.green,
+                            grid_overlay->config.font_secondary_color.blue,
+                            grid_overlay->config.font_secondary_color.alpha);
     }
     pango_layout_set_text(layout, gtext.text, gtext.text_len);
     double x = gtext.center_x_percent * width / 100;
     double y = gtext.center_y_percent * height / 100;
-    cairo_move_to(cr, x - ((double)grid_options->font_size / 2),
-                  y - ((double)grid_options->font_size / 2));
+    cairo_move_to(cr, x - ((double)grid_overlay->config.font_size / 2),
+                  y - ((double)grid_overlay->config.font_size / 2));
     pango_cairo_show_layout(cr, layout);
   }
 
@@ -110,7 +112,7 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event,
                              gpointer user_data) {
   g_print("Key pressed: keyval=%d, name=%s\n", event->keyval,
           gdk_keyval_name(event->keyval));
-  GridOptions *grid_options = (GridOptions *)user_data;
+  GridOverlay *grid_overlay = (GridOverlay *)user_data;
 
   switch (event->keyval) {
   case GDK_KEY_Escape:
@@ -124,17 +126,21 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event,
     return TRUE;
   case GDK_KEY_i:
   case GDK_KEY_I:
-    grid_options->use_secondary_color = !grid_options->use_secondary_color;
+    grid_overlay->state.use_secondary_color =
+        !grid_overlay->state.use_secondary_color;
     g_print("Inversion called. Secondary-Color: %s\n",
-            grid_options->use_secondary_color ? "True" : "False");
+            grid_overlay->state.use_secondary_color ? "True" : "False");
     gtk_widget_queue_draw(widget); // redraw overlay
     return TRUE;
   }
 
+  grid_overlay->key_handler(grid_overlay, event->keyval);
+  gtk_widget_queue_draw(widget); // redraw overlay
+
   return TRUE;
 }
 
-int overlay_create(GridOptions *options) {
+int overlay_create(GridOverlay *overlay) {
   gtk_init(NULL, NULL);
   GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
@@ -155,9 +161,9 @@ int overlay_create(GridOptions *options) {
   gtk_style_context_add_provider(context, GTK_STYLE_PROVIDER(provider),
                                  GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
-  g_signal_connect(window, "draw", G_CALLBACK(on_draw), options);
+  g_signal_connect(window, "draw", G_CALLBACK(on_draw), overlay);
   g_signal_connect(window, "key-press-event", G_CALLBACK(on_key_press),
-                   options);
+                   overlay);
   g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
   gtk_widget_show_all(window);
