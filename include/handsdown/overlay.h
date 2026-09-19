@@ -2,6 +2,7 @@
 #define OVERLAY_H
 
 #include "gdk/gdk.h"
+#include "glib.h"
 #include "input.h"
 #include <stdbool.h>
 #include <sys/types.h>
@@ -49,6 +50,12 @@ typedef struct {
   uint grid_texts_count;
 } GridState;
 
+typedef struct {
+  gboolean cursor_in_window;
+  gdouble x;
+  gdouble y;
+} CursorData;
+
 typedef struct GridOverlay GridOverlay;
 
 typedef void (*KeyHandler)(GridOverlay *overlay, guint keyval);
@@ -57,6 +64,7 @@ struct GridOverlay {
   GridConfiguration config;
   GridState state;
   KeyHandler key_handler;
+  CursorData cursor;
   void *user_data;
 };
 

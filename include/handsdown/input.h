@@ -5,14 +5,8 @@
 #define AXIS_RESOLUTION_MIN 0
 #define AXIS_RESOLUTION_MAX 65535
 
-typedef struct {
-  int fd_mouse;
-  int fd_abs;
-} HybridInput;
-
-HybridInput *input_init(void);
-int input_destroy(HybridInput *fd);
-int input_abs_move(const int fd, const int x, const int y);
+int input_init(void);
+int input_destroy(int fd);
 int input_rel_move(const int fd, const int x, const int y);
 int input_click_left(const int fd);
 int input_click_right(const int fd);

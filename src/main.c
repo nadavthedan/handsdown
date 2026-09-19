@@ -1,6 +1,6 @@
-#include "abs_mode.h"
 #include "display.h"
 #include "gdk/gdkkeysyms.h"
+#include "grid_mode.h"
 #include "input.h"
 #include "overlay.h"
 #include <stdbool.h>
@@ -31,10 +31,11 @@ void handler_example(GridOverlay *go, guint keyval) {
 int main(int argc, char *argv[]) {
   printf("This is handsdown the best tool!\n");
 
-  HybridInput *input_devices = input_init();
+  int input_fd = input_init();
 
-  if (!input_devices->fd_abs || !input_devices->fd_mouse) {
+  if (input_fd < 0) {
     printf("ERROR!\n");
+    return input_fd;
   }
 
   DisplayContext *disp_ctx = display_listener_start();
@@ -74,11 +75,11 @@ int main(int argc, char *argv[]) {
   //     handler_example};
   // overlay_create(&overlay);
 
-  abs_mode_four_way_rec_split(input_devices, disp_ctx);
+  grid_mode_four_way_rec_split(input_fd, disp_ctx);
 
   printf("INFO: exiting cleanly...\n");
   display_listener_stop(disp_ctx);
-  input_destroy(input_devices);
+  input_destroy(input_fd);
   printf("INFO: exit complete\n");
 
   return EXIT_SUCCESS;

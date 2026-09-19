@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 void grid_overlay_fourway_split_keyhandler(GridOverlay *go, guint keyval) {
-  HybridInput *input = (HybridInput *)go->user_data;
+  // int input_fd = *(int *)go->user_data;
   double last_width_percent =
       go->state.grid_sections[go->state.grid_sections_count - 1].width_percent;
   double last_height_percent =
@@ -14,10 +14,8 @@ void grid_overlay_fourway_split_keyhandler(GridOverlay *go, guint keyval) {
   int y = AXIS_RESOLUTION_MAX * (last_height_percent / 2) / 100;
   switch (keyval) {
   case GDK_KEY_d:
-    input_abs_move(input->fd_abs, x, y - 14000);
     return;
   case GDK_KEY_f:
-    input_abs_move(input->fd_abs, x + 1000, y - 8000);
     return;
   case GDK_KEY_j:
     return;
@@ -28,7 +26,7 @@ void grid_overlay_fourway_split_keyhandler(GridOverlay *go, guint keyval) {
 }
 
 GridOverlay *grid_overlay_fourway_split_init(GridConfiguration *config,
-                                             HybridInput *input) {
+                                             int input_fd) {
   GridSection *sections = malloc(sizeof(GridSection));
   sections[0] = (GridSection){1, 1, 100, 100, 2, 2, {{0, 0, 0, 0}}};
   GridText *texts = malloc(4 * sizeof(GridText));
@@ -41,7 +39,7 @@ GridOverlay *grid_overlay_fourway_split_init(GridConfiguration *config,
   overlay->config = *config;
   overlay->state = state;
   overlay->key_handler = grid_overlay_fourway_split_keyhandler;
-  overlay->user_data = input;
+  // overlay->user_data = &input_fd; // TODO: change this this is weird
   return overlay;
 }
 
@@ -51,8 +49,7 @@ void grid_overlay_fourway_split_destroy(GridOverlay *overlay) {
   free(overlay);
 }
 
-int abs_mode_four_way_rec_split(HybridInput *input,
-                                DisplayContext *display_ctx) {
+int grid_mode_four_way_rec_split(int input_fd, DisplayContext *display_ctx) {
 
   Monitor my_monitors[MAX_MONITORS];
   for (int i = 0; i < 5; i++) {
@@ -67,7 +64,7 @@ int abs_mode_four_way_rec_split(HybridInput *input,
   }
   GridConfiguration config = {1,  {1, 1, 1, 0.3}, {0, 0, 0, 1},
                               20, {1, 1, 1, 0.3}, {0, 0, 0, 1}};
-  GridOverlay *overlay = grid_overlay_fourway_split_init(&config, input);
+  GridOverlay *overlay = grid_overlay_fourway_split_init(&config, input_fd);
   overlay_create(overlay);
   grid_overlay_fourway_split_destroy(overlay);
 

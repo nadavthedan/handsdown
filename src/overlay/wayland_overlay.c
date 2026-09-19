@@ -1,6 +1,9 @@
 #include "cairo.h"
+#include "gdk/gdk.h"
 #include "gdk/gdkkeysyms.h"
 #include "glib-object.h"
+#include "glib.h"
+#include "glibconfig.h"
 #include "gtk/gtkcssprovider.h"
 #include "overlay.h"
 #include "pango/pango-font.h"
@@ -140,6 +143,35 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event,
   return TRUE;
 }
 
+static gboolean on_overlay_enter(GtkWidget *widget, GdkEventCrossing *event,
+                                 gpointer user_data) {
+  GridOverlay *grid_overlay = (GridOverlay *)user_data;
+  grid_overlay->cursor.cursor_in_window = TRUE;
+  grid_overlay->cursor.x = event->x;
+  grid_overlay->cursor.y = event->y;
+  return FALSE;
+}
+
+static gboolean on_overlay_leave(GtkWidget *widget, GdkEventCrossing *event,
+                                 gpointer user_data) {
+  GridOverlay *grid_overlay = (GridOverlay *)user_data;
+  grid_overlay->cursor.cursor_in_window = FALSE;
+  g_print("left overlay...\n");
+  gtk_main_quit();
+  return FALSE;
+}
+
+static gboolean on_overlay_cursor_motion(GtkWidget *widget,
+                                         GdkEventMotion *event,
+                                         gpointer user_data) {
+  GridOverlay *grid_overlay = (GridOverlay *)user_data;
+  grid_overlay->cursor.cursor_in_window = TRUE;
+  grid_overlay->cursor.x = event->x;
+  grid_overlay->cursor.y = event->y;
+
+  return FALSE;
+}
+
 int overlay_create(GridOverlay *overlay) {
   gtk_init(NULL, NULL);
   GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -161,6 +193,15 @@ int overlay_create(GridOverlay *overlay) {
   gtk_style_context_add_provider(context, GTK_STYLE_PROVIDER(provider),
                                  GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
+  gtk_widget_add_events(window, GDK_POINTER_MOTION_MASK |
+                                    GDK_ENTER_NOTIFY_MASK |
+                                    GDK_LEAVE_NOTIFY_MASK);
+  g_signal_connect(window, "enter-notify-event", G_CALLBACK(on_overlay_enter),
+                   overlay);
+  g_signal_connect(window, "leave-notify-event", G_CALLBACK(on_overlay_leave),
+                   overlay);
+  g_signal_connect(window, "motion-notify-event",
+                   G_CALLBACK(on_overlay_cursor_motion), overlay);
   g_signal_connect(window, "draw", G_CALLBACK(on_draw), overlay);
   g_signal_connect(window, "key-press-event", G_CALLBACK(on_key_press),
                    overlay);
