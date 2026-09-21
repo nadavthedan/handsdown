@@ -17,6 +17,8 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
   GridOverlay *grid_overlay = (GridOverlay *)user_data;
   int width = gtk_widget_get_allocated_width(widget);
   int height = gtk_widget_get_allocated_height(widget);
+  grid_overlay->state.width = width;
+  grid_overlay->state.height = height;
 
   cairo_set_source_rgba(cr, 0, 0, 0, 0.5);
   cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
@@ -164,6 +166,7 @@ static gboolean on_overlay_leave(GtkWidget *widget, GdkEventCrossing *event,
 static gboolean on_overlay_cursor_motion(GtkWidget *widget,
                                          GdkEventMotion *event,
                                          gpointer user_data) {
+  printf("motion detected: x: %f, y: %f\n", event->x, event->y);
   GridOverlay *grid_overlay = (GridOverlay *)user_data;
   grid_overlay->cursor.cursor_in_window = TRUE;
   grid_overlay->cursor.x = event->x;

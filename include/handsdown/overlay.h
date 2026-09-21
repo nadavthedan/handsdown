@@ -43,6 +43,8 @@ typedef struct {
 } GridConfiguration;
 
 typedef struct {
+  gdouble width;
+  gdouble height;
   bool use_secondary_color;
   GridSection *grid_sections;
   uint grid_sections_count;
@@ -65,7 +67,7 @@ struct GridOverlay {
   GridState state;
   KeyHandler key_handler;
   CursorData cursor;
-  void *user_data;
+  void *mode_state_data;
 };
 
 int overlay_create(GridOverlay *options);
