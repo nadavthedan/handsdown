@@ -1,6 +1,4 @@
 #include "cairo.h"
-#include "gdk/gdk.h"
-#include "gdk/gdkkeysyms.h"
 #include "glib-object.h"
 #include "glib.h"
 #include "glibconfig.h"
@@ -13,7 +11,9 @@
 #include <gtk-layer-shell.h>
 #include <stdio.h>
 
-static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
+static gboolean
+on_draw(GtkWidget *widget, cairo_t *cr,
+        gpointer user_data) { // TODO: make this readable and clean
   GridOverlay *grid_overlay = (GridOverlay *)user_data;
   int width = gtk_widget_get_allocated_width(widget);
   int height = gtk_widget_get_allocated_height(widget);
@@ -113,66 +113,10 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
   return FALSE; // Let event propagate
 }
 
-static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event,
-                             gpointer user_data) {
-  g_print("Key pressed: keyval=%d, name=%s\n", event->keyval,
-          gdk_keyval_name(event->keyval));
-  GridOverlay *grid_overlay = (GridOverlay *)user_data;
-
-  switch (event->keyval) {
-  case GDK_KEY_Escape:
-  case GDK_KEY_q:
-    g_print("closing overlay...\n");
-    gtk_main_quit();
-    return TRUE;
-  case GDK_KEY_w:
-  case GDK_KEY_W:
-    g_print("Action: W key triggered!\n");
-    return TRUE;
-  case GDK_KEY_i:
-  case GDK_KEY_I:
-    grid_overlay->state.use_secondary_color =
-        !grid_overlay->state.use_secondary_color;
-    g_print("Inversion called. Secondary-Color: %s\n",
-            grid_overlay->state.use_secondary_color ? "True" : "False");
-    gtk_widget_queue_draw(widget); // redraw overlay
-    return TRUE;
-  }
-
-  grid_overlay->key_handler(grid_overlay, event->keyval);
-  gtk_widget_queue_draw(widget); // redraw overlay
-
-  return TRUE;
-}
-
-static gboolean on_overlay_enter(GtkWidget *widget, GdkEventCrossing *event,
-                                 gpointer user_data) {
-  GridOverlay *grid_overlay = (GridOverlay *)user_data;
-  grid_overlay->cursor.cursor_in_window = TRUE;
-  grid_overlay->cursor.x = event->x;
-  grid_overlay->cursor.y = event->y;
-  return FALSE;
-}
-
-static gboolean on_overlay_leave(GtkWidget *widget, GdkEventCrossing *event,
-                                 gpointer user_data) {
-  GridOverlay *grid_overlay = (GridOverlay *)user_data;
-  grid_overlay->cursor.cursor_in_window = FALSE;
-  g_print("left overlay...\n");
-  gtk_main_quit();
-  return FALSE;
-}
-
-static gboolean on_overlay_cursor_motion(GtkWidget *widget,
-                                         GdkEventMotion *event,
-                                         gpointer user_data) {
-  printf("motion detected: x: %f, y: %f\n", event->x, event->y);
-  GridOverlay *grid_overlay = (GridOverlay *)user_data;
-  grid_overlay->cursor.cursor_in_window = TRUE;
-  grid_overlay->cursor.x = event->x;
-  grid_overlay->cursor.y = event->y;
-
-  return FALSE;
+static void on_realize(GtkWidget *widget, gpointer data) {
+  cairo_region_t *empty = cairo_region_create();
+  gtk_widget_input_shape_combine_region(widget, empty);
+  cairo_region_destroy(empty);
 }
 
 int overlay_create(GridOverlay *overlay) {
@@ -187,29 +131,20 @@ int overlay_create(GridOverlay *overlay) {
   gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
   gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
 
-  gtk_layer_set_keyboard_interactivity(GTK_WINDOW(window), TRUE);
+  gtk_layer_set_keyboard_interactivity(GTK_WINDOW(window), FALSE);
   GtkCssProvider *provider = gtk_css_provider_new();
   gtk_css_provider_load_from_data(
-      provider, "window { background-color: rgba(0, 0, 0, 0.1); ", -1, NULL);
+      provider, "window { background-color: rgba(0, 0, 0, 0.1); }", -1, NULL);
 
   GtkStyleContext *context = gtk_widget_get_style_context(window);
   gtk_style_context_add_provider(context, GTK_STYLE_PROVIDER(provider),
                                  GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
-  gtk_widget_add_events(window, GDK_POINTER_MOTION_MASK |
-                                    GDK_ENTER_NOTIFY_MASK |
-                                    GDK_LEAVE_NOTIFY_MASK);
-  g_signal_connect(window, "enter-notify-event", G_CALLBACK(on_overlay_enter),
-                   overlay);
-  g_signal_connect(window, "leave-notify-event", G_CALLBACK(on_overlay_leave),
-                   overlay);
-  g_signal_connect(window, "motion-notify-event",
-                   G_CALLBACK(on_overlay_cursor_motion), overlay);
   g_signal_connect(window, "draw", G_CALLBACK(on_draw), overlay);
-  g_signal_connect(window, "key-press-event", G_CALLBACK(on_key_press),
-                   overlay);
   g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+  g_signal_connect(window, "realize", G_CALLBACK(on_realize), NULL);
 
+  gtk_widget_set_app_paintable(window, TRUE);
   gtk_widget_show_all(window);
   gtk_main();
 

@@ -172,6 +172,9 @@ void grid_overlay_fourway_split_keyhandler(GridOverlay *go, guint keyval) {
     tx = base_x + last_width / 2;
     ty = base_y + last_height / 2;
     break;
+  case GDK_KEY_space:
+    input_click_left(mode->input_fd);
+    return;
   default:
     return;
   }
