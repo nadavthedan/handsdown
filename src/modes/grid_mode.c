@@ -6,7 +6,7 @@
 GridOverlay *grid_overlay_fourway_split_init(GridConfiguration *config) {
   // make max section a global var and validate for it (right here it is 64)
   GridSection *sections = malloc(sizeof(GridSection) * 64);
-  sections[0] = (GridSection){1, 1, 100, 100, 2, 2, {{0, 0, 0, 0}}};
+  sections[0] = (GridSection){0, 0, 100, 100, 2, 2, {{0, 0, 0, 0}}};
   GridText *texts = malloc(4 * sizeof(GridText));
   texts[0] = (GridText){25, 25, "d", 1};
   texts[1] = (GridText){25, 75, "f", 1};

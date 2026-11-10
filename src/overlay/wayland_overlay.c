@@ -36,8 +36,7 @@ static Rect section_rect(const GridSection *section, int width, int height) {
 }
 
 static void draw_section_backgrounds(cairo_t *cr, const GridSection sections[],
-                                     uint sections_len, int width,
-                                     int height) {
+                                     uint sections_len, int width, int height) {
   for (uint i = 0; i < sections_len; i++) {
     const GridSection *section = &sections[i];
     Rect rect = section_rect(section, width, height);
@@ -109,12 +108,12 @@ static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
   cairo_paint(cr);
   cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 
-  draw_section_backgrounds(cr, state->grid_sections,
-                           state->grid_sections_count, width, height);
+  draw_section_backgrounds(cr, state->grid_sections, state->grid_sections_count,
+                           width, height);
 
-  set_source(cr, pick_color(config->border_color,
-                            config->border_secondary_color,
-                            state->use_secondary_color));
+  set_source(cr,
+             pick_color(config->border_color, config->border_secondary_color,
+                        state->use_secondary_color));
   cairo_set_line_width(cr, config->border_thickness);
   draw_section_grid(cr, state->grid_sections, state->grid_sections_count, width,
                     height);
@@ -140,6 +139,7 @@ int overlay_create(GridOverlay *overlay) {
 
   gtk_layer_init_for_window(GTK_WINDOW(window));
   gtk_layer_set_layer(GTK_WINDOW(window), GTK_LAYER_SHELL_LAYER_OVERLAY);
+  gtk_layer_set_exclusive_zone(GTK_WINDOW(window), -1);
 
   const GtkLayerShellEdge edges[] = {
       GTK_LAYER_SHELL_EDGE_TOP,
