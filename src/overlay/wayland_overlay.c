@@ -1,119 +1,134 @@
-#include "cairo.h"
-#include "glib-object.h"
-#include "glib.h"
-#include "glibconfig.h"
-#include "gtk/gtkcssprovider.h"
 #include "overlay.h"
-#include "pango/pango-font.h"
-#include "pango/pango-layout.h"
-#include "pango/pangocairo.h"
-#include <gtk-3.0/gtk/gtk.h>
+
+#include <cairo.h>
 #include <gtk-layer-shell.h>
-#include <stdio.h>
+#include <gtk/gtk.h>
+#include <pango/pangocairo.h>
 
-static gboolean
-on_draw(GtkWidget *widget, cairo_t *cr,
-        gpointer user_data) { // TODO: make this readable and clean
-  GridOverlay *grid_overlay = (GridOverlay *)user_data;
-  int width = gtk_widget_get_allocated_width(widget);
-  int height = gtk_widget_get_allocated_height(widget);
-  grid_overlay->state.width = width;
-  grid_overlay->state.height = height;
+#define PERCENT 100.0
+#define HALF_PIXEL 0.5
 
-  cairo_set_source_rgba(cr, 0, 0, 0, 0.5);
-  cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-  cairo_paint(cr);
+static const struct rgba BACKDROP = {0, 0, 0, 0.5};
 
-  for (uint i = 0; i < grid_overlay->state.grid_sections_count; i++) {
-    GridSection section = grid_overlay->state.grid_sections[i];
+typedef struct {
+  double x;
+  double y;
+  double width;
+  double height;
+} Rect;
 
-    double x_start = section.start_x_percent * width / 100;
-    double section_width = section.width_percent * width / 100;
+static void set_source(cairo_t *cr, struct rgba color) {
+  cairo_set_source_rgba(cr, color.red, color.green, color.blue, color.alpha);
+}
 
-    double y_start = section.start_y_percent * height / 100;
-    double section_height = section.height_percent * height / 100;
+static struct rgba pick_color(struct rgba primary, struct rgba secondary,
+                              bool use_secondary) {
+  return use_secondary ? secondary : primary;
+}
 
-    cairo_set_source_rgba(cr, section.config.background_color.red,
-                          section.config.background_color.green,
-                          section.config.background_color.blue,
-                          section.config.background_color.alpha);
-    cairo_rectangle(cr, x_start, y_start, section_width, section_height);
+static Rect section_rect(const GridSection *section, int width, int height) {
+  return (Rect){
+      .x = section->start_x_percent * width / PERCENT,
+      .y = section->start_y_percent * height / PERCENT,
+      .width = section->width_percent * width / PERCENT,
+      .height = section->height_percent * height / PERCENT,
+  };
+}
+
+static void draw_section_backgrounds(cairo_t *cr, const GridSection sections[],
+                                     uint sections_len, int width,
+                                     int height) {
+  for (uint i = 0; i < sections_len; i++) {
+    const GridSection *section = &sections[i];
+    Rect rect = section_rect(section, width, height);
+
+    set_source(cr, section->config.background_color);
+    cairo_rectangle(cr, rect.x, rect.y, rect.width, rect.height);
     cairo_fill(cr);
   }
+}
 
-  if (!grid_overlay->state.use_secondary_color) {
-    cairo_set_source_rgba(cr, grid_overlay->config.border_color.red,
-                          grid_overlay->config.border_color.green,
-                          grid_overlay->config.border_color.blue,
-                          grid_overlay->config.border_color.alpha);
-  } else {
-    cairo_set_source_rgba(cr, grid_overlay->config.border_secondary_color.red,
-                          grid_overlay->config.border_secondary_color.green,
-                          grid_overlay->config.border_secondary_color.blue,
-                          grid_overlay->config.border_secondary_color.alpha);
-  }
-  cairo_set_line_width(cr, grid_overlay->config.border_thickness);
+static void draw_section_grid(cairo_t *cr, const GridSection sections[],
+                              uint sections_len, int width, int height) {
+  for (uint i = 0; i < sections_len; i++) {
+    const GridSection *section = &sections[i];
+    Rect rect = section_rect(section, width, height);
 
-  for (uint i = 0; i < grid_overlay->state.grid_sections_count; i++) {
-    GridSection section = grid_overlay->state.grid_sections[i];
+    double cell_width = rect.width / section->cell_horizontal_count;
+    double cell_height = rect.height / section->cell_vertical_count;
 
-    double x_start = section.start_x_percent * width / 100;
-    double section_width = section.width_percent * width / 100;
-    double cell_width = section_width / section.cell_horizontal_count;
-    double x_end = x_start + section_width;
-
-    double y_start = section.start_y_percent * height / 100;
-    double section_height = section.height_percent * height / 100;
-    double cell_height = section_height / section.cell_vertical_count;
-    double y_end = y_start + section_height;
-
-    for (double x_draw = cell_width; x_start + x_draw < x_end;
-         x_draw += cell_width) {
-      cairo_move_to(cr, x_start + x_draw + 0.5, y_start);
-      cairo_line_to(cr, x_start + x_draw + 0.5, y_end);
+    for (double x = cell_width; x < rect.width; x += cell_width) {
+      cairo_move_to(cr, rect.x + x + HALF_PIXEL, rect.y);
+      cairo_line_to(cr, rect.x + x + HALF_PIXEL, rect.y + rect.height);
     }
 
-    for (double y_draw = cell_height; y_start + y_draw < y_end;
-         y_draw += cell_height) {
-      cairo_move_to(cr, x_start, y_start + y_draw + 0.5);
-      cairo_line_to(cr, x_end, y_start + y_draw + 0.5);
+    for (double y = cell_height; y < rect.height; y += cell_height) {
+      cairo_move_to(cr, rect.x, rect.y + y + HALF_PIXEL);
+      cairo_line_to(cr, rect.x + rect.width, rect.y + y + HALF_PIXEL);
     }
   }
   cairo_stroke(cr);
+}
 
+static void draw_texts(cairo_t *cr, const GridText texts[], uint texts_count,
+                       int width, int height, uint font_size) {
   PangoLayout *layout = pango_cairo_create_layout(cr);
-  char font[64];
-  snprintf(font, sizeof(font), "Monospace %d", grid_overlay->config.font_size);
+  g_autofree char *font = g_strdup_printf("Monospace %u", font_size);
   PangoFontDescription *font_desc = pango_font_description_from_string(font);
   pango_layout_set_font_description(layout, font_desc);
   pango_font_description_free(font_desc);
-  for (uint i = 0; i < grid_overlay->state.grid_texts_count; i++) {
-    GridText gtext = grid_overlay->state.grid_texts[i];
-    if (!grid_overlay->state.use_secondary_color) {
-      cairo_set_source_rgba(cr, grid_overlay->config.font_color.red,
-                            grid_overlay->config.font_color.green,
-                            grid_overlay->config.font_color.blue,
-                            grid_overlay->config.font_color.alpha);
-    } else {
-      cairo_set_source_rgba(cr, grid_overlay->config.font_secondary_color.red,
-                            grid_overlay->config.font_secondary_color.green,
-                            grid_overlay->config.font_secondary_color.blue,
-                            grid_overlay->config.font_secondary_color.alpha);
-    }
-    pango_layout_set_text(layout, gtext.text, gtext.text_len);
-    double x = gtext.center_x_percent * width / 100;
-    double y = gtext.center_y_percent * height / 100;
-    cairo_move_to(cr, x - ((double)grid_overlay->config.font_size / 2),
-                  y - ((double)grid_overlay->config.font_size / 2));
+
+  for (uint i = 0; i < texts_count; i++) {
+    const GridText *text = &texts[i];
+    pango_layout_set_text(layout, text->text, text->text_len);
+
+    int text_width, text_height;
+    pango_layout_get_pixel_size(layout, &text_width, &text_height);
+
+    double x = text->center_x_percent * width / PERCENT;
+    double y = text->center_y_percent * height / PERCENT;
+    cairo_move_to(cr, x - text_width / 2.0, y - text_height / 2.0);
     pango_cairo_show_layout(cr, layout);
   }
 
   g_object_unref(layout);
+}
 
-  return FALSE; // Let event propagate
+static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
+  GridOverlay *overlay = user_data;
+  GridState *state = &overlay->state;
+  GridConfiguration *config = &overlay->config;
+
+  int width = gtk_widget_get_allocated_width(widget);
+  int height = gtk_widget_get_allocated_height(widget);
+  state->width = width;
+  state->height = height;
+
+  set_source(cr, BACKDROP);
+  cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+  cairo_paint(cr);
+  cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+
+  draw_section_backgrounds(cr, state->grid_sections,
+                           state->grid_sections_count, width, height);
+
+  set_source(cr, pick_color(config->border_color,
+                            config->border_secondary_color,
+                            state->use_secondary_color));
+  cairo_set_line_width(cr, config->border_thickness);
+  draw_section_grid(cr, state->grid_sections, state->grid_sections_count, width,
+                    height);
+
+  set_source(cr, pick_color(config->font_color, config->font_secondary_color,
+                            state->use_secondary_color));
+  draw_texts(cr, state->grid_texts, state->grid_texts_count, width, height,
+             config->font_size);
+
+  return FALSE;
 }
 
 static void on_realize(GtkWidget *widget, gpointer data) {
+  (void)data;
   cairo_region_t *empty = cairo_region_create();
   gtk_widget_input_shape_combine_region(widget, empty);
   cairo_region_destroy(empty);
@@ -126,19 +141,25 @@ int overlay_create(GridOverlay *overlay) {
   gtk_layer_init_for_window(GTK_WINDOW(window));
   gtk_layer_set_layer(GTK_WINDOW(window), GTK_LAYER_SHELL_LAYER_OVERLAY);
 
-  gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
-  gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_BOTTOM, TRUE);
-  gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
-  gtk_layer_set_anchor(GTK_WINDOW(window), GTK_LAYER_SHELL_EDGE_RIGHT, TRUE);
+  const GtkLayerShellEdge edges[] = {
+      GTK_LAYER_SHELL_EDGE_TOP,
+      GTK_LAYER_SHELL_EDGE_BOTTOM,
+      GTK_LAYER_SHELL_EDGE_LEFT,
+      GTK_LAYER_SHELL_EDGE_RIGHT,
+  };
+  for (size_t i = 0; i < G_N_ELEMENTS(edges); i++) {
+    gtk_layer_set_anchor(GTK_WINDOW(window), edges[i], TRUE);
+  }
 
   gtk_layer_set_keyboard_interactivity(GTK_WINDOW(window), FALSE);
+
   GtkCssProvider *provider = gtk_css_provider_new();
   gtk_css_provider_load_from_data(
       provider, "window { background-color: rgba(0, 0, 0, 0.1); }", -1, NULL);
-
   GtkStyleContext *context = gtk_widget_get_style_context(window);
   gtk_style_context_add_provider(context, GTK_STYLE_PROVIDER(provider),
                                  GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+  g_object_unref(provider);
 
   g_signal_connect(window, "draw", G_CALLBACK(on_draw), overlay);
   g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
