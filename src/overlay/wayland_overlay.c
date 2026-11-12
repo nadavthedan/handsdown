@@ -1,3 +1,6 @@
+#include "gdk/gdkkeysyms.h"
+#include "glib-object.h"
+#include "glib.h"
 #include "overlay.h"
 
 #include <cairo.h>
@@ -133,6 +136,29 @@ static void on_realize(GtkWidget *widget, gpointer data) {
   cairo_region_destroy(empty);
 }
 
+static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event,
+                             gpointer data) {
+  GridOverlay *overlay = data;
+  if (event->keyval == GDK_KEY_Escape) {
+    gtk_widget_destroy(widget);
+    return TRUE;
+  }
+  if (overlay->key_handler) {
+    overlay->key_handler(overlay, event->keyval);
+  }
+  return TRUE;
+}
+
+static gboolean on_key_release(GtkWidget *widget, GdkEventKey *event,
+                               gpointer data) {
+  (void)widget;
+  GridOverlay *overlay = data;
+  // if (overlay->key_release_handler) {
+  //   overlay->key_release_handler(overlay, event->keyval);
+  // }
+  return TRUE;
+}
+
 int overlay_create(GridOverlay *overlay) {
   gtk_init(NULL, NULL);
   GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -151,7 +177,9 @@ int overlay_create(GridOverlay *overlay) {
     gtk_layer_set_anchor(GTK_WINDOW(window), edges[i], TRUE);
   }
 
-  gtk_layer_set_keyboard_interactivity(GTK_WINDOW(window), FALSE);
+  // gtk_layer_set_keyboard_interactivity(GTK_WINDOW(window), FALSE);
+  gtk_layer_set_keyboard_mode(GTK_WINDOW(window),
+                              GTK_LAYER_SHELL_KEYBOARD_MODE_EXCLUSIVE);
 
   GtkCssProvider *provider = gtk_css_provider_new();
   gtk_css_provider_load_from_data(
@@ -164,6 +192,10 @@ int overlay_create(GridOverlay *overlay) {
   g_signal_connect(window, "draw", G_CALLBACK(on_draw), overlay);
   g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
   g_signal_connect(window, "realize", G_CALLBACK(on_realize), NULL);
+  g_signal_connect(window, "key-press-event", G_CALLBACK(on_key_press),
+                   overlay);
+  g_signal_connect(window, "key-release-event", G_CALLBACK(on_key_release),
+                   overlay);
 
   gtk_widget_set_app_paintable(window, TRUE);
   gtk_widget_show_all(window);
