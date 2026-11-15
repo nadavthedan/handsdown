@@ -229,9 +229,10 @@ static int handle_event(const struct input_event *event,
     return 0;
   }
 
-  int i = held_event_index(event->code, events->held_events);
-  if (i >= 0) {
-    HeldEvent *held = &events->held_events->data[i];
+  int event_index;
+  event_index = held_event_index(event->code, events->held_events);
+  if (event_index >= 0) {
+    HeldEvent *held = &events->held_events->data[event_index];
     if (event->value == 1)
       held->physical_down = true;
     if (event->value == 0)
@@ -259,6 +260,11 @@ static int handle_event(const struct input_event *event,
     } else if (event->value == 0) {
       held->forwarded_down = false;
     }
+  }
+
+  event_index = macro_event_index(event->code, events->macro_events);
+  if (event_index >= 0) {
+    events->macro_events->data->action();
   }
 
   return emit(event->type, event->code, event->value);

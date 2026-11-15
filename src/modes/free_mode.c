@@ -30,12 +30,21 @@ static int right_interval_action(void) {
   return 0;
 }
 
-static int free_mode_destroy(struct input_events *ev) {
-  free(ev->held_events->data);
-  free(ev->held_events);
+static int exit_macro(void) {
+  stop_virtual_keyboard_override();
+  return 0;
+}
 
-  free(ev->macro_events->data);
-  free(ev->macro_events);
+static int free_mode_destroy(struct input_events *ev) {
+  if (ev->held_events) {
+    free(ev->held_events->data);
+    free(ev->held_events);
+  }
+
+  if (ev->macro_events) {
+    free(ev->macro_events->data);
+    free(ev->macro_events);
+  }
 
   free(ev);
 
@@ -56,10 +65,18 @@ int free_mode(void) {
   HeldEventArray_push(held, down);
   HeldEventArray_push(held, right);
 
-  ev->macro_events = NULL;
+  MacroEventArray *macro = calloc(1, sizeof(MacroEventArray));
+
+  MacroEvent exit1 = {KEY_ESC, 1, exit_macro};
+  MacroEvent exit2 = {KEY_CAPSLOCK, 1, exit_macro};
+
+  MacroEventArray_push(macro, exit1);
+  MacroEventArray_push(macro, exit2);
+
+  ev->macro_events = macro;
   ev->held_events = held;
 
-  int err = virtual_device_init("/dev/input/event3", ev);
+  int err = virtual_keyboard_override("/dev/input/event3", ev);
   if (err) {
     fprintf(stderr, "Free mode failed to initialize virtual device\n");
   }
