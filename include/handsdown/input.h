@@ -1,21 +1,35 @@
 #ifndef INPUT_H
 #define INPUT_H
-#include "display.h"
+#include "utils.h"
+#include <stdbool.h>
 
-#define AXIS_RESOLUTION_MIN 0
-#define AXIS_RESOLUTION_MAX 65535
+typedef struct {
+  unsigned int key;
+  bool physical_down;
+  bool forwarded_down;
+  bool supress_until_release;
+  bool active;
+  int (*interval_action)(void);
+} HeldEvent;
 
-int input_init(void);
-int input_destroy(int fd);
-int input_rel_move(const int fd, const int x, const int y);
-int input_click_left(const int fd);
-int input_click_right(const int fd);
-int input_click_middle(const int fd);
+typedef struct {
+  unsigned int key;
+  int value_to_trigger;
+  int (*action)(void);
+} MacroEvent;
 
-// scroll vertically: postive = up, negative = down
-int scroll_vertical(int fd, int clicks);
+DEFINE_ARRAY(HeldEvent, HeldEventArray)
+DEFINE_ARRAY(MacroEvent, MacroEventArray)
 
-// scroll horizontal: postive = right, negative = left
-int scroll_horizontal(int fd, int clicks);
+struct input_events {
+  HeldEventArray *held_events;
+  MacroEventArray *macro_events;
+};
+
+int virtual_device_init(char *physical_keyboard_device_path,
+                        struct input_events *ev);
+int emit(unsigned int type, unsigned int code, int value);
+int sync_output(void);
+// -------------------------------------------
 
 #endif

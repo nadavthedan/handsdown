@@ -32,9 +32,9 @@ Overlay *grid_overlay_fourway_split_init(void) {
   overlay->key_down_handler = NULL;
   overlay->key_release_handler = NULL;
 
-  OverlayRectArray *rects = malloc(sizeof(OverlayRectArray));
-  OverlayLineArray *lines = malloc(sizeof(OverlayLineArray));
-  OverlayTextArray *texts = malloc(sizeof(OverlayTextArray));
+  OverlayRectArray *rects = calloc(1, sizeof(OverlayRectArray));
+  OverlayLineArray *lines = calloc(1, sizeof(OverlayLineArray));
+  OverlayTextArray *texts = calloc(1, sizeof(OverlayTextArray));
 
   create_grid_cross(lines, 0, 0, 100, 100);
   create_grid_cross(lines, 0, 0, 50, 50);

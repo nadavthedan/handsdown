@@ -1,5 +1,6 @@
 #ifndef UTILS_H
 #define UTILS_H
+#include <stdlib.h>
 
 #define DEFINE_ARRAY(T, Name)                                                  \
   typedef struct {                                                             \

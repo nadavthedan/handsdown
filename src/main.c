@@ -1,4 +1,5 @@
 #include "display.h"
+#include "free_mode.h"
 #include "gdk/gdkkeysyms.h"
 #include "grid_mode.h"
 #include "input.h"
@@ -10,13 +11,13 @@
 
 int main(int argc, char *argv[]) {
   printf("This is handsdown the best tool!\n");
-  int fd = input_init();
-
-  grid_mode_four_way_rec_split();
-  input_click_left(fd);
+  // int fd = input_init();
+  free_mode();
+  // grid_mode_four_way_rec_split();
+  // input_click_left(fd);
 
   printf("INFO: exiting cleanly...\n");
-  input_destroy(fd);
+  // input_destroy(fd);
   printf("INFO: exit complete\n");
 
   return EXIT_SUCCESS;

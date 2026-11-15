@@ -1,7 +1,5 @@
 #include "display.h"
 #include <asm-generic/errno.h>
-#include <errno.h>
-#include <math.h>
 #include <poll.h>
 #include <pthread.h>
 #include <stdint.h>
