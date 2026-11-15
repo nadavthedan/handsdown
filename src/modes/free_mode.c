@@ -1,6 +1,7 @@
 #include "input.h"
 #include "overlay.h"
 #include <linux/input-event-codes.h>
+#include <pthread.h>
 #include <stdio.h>
 
 static int up_interval_action(struct input_state *state) {
@@ -86,7 +87,47 @@ static int free_mode_destroy(struct input_state *state) {
   return 0;
 }
 
+static void *overlay_thread_fn(void *arg) {
+  overlay_create((struct overlay_state *)arg);
+  return NULL;
+}
+
+static void setup_free_mode_overlay_hint(struct overlay_state *overlay_state) {
+  OverlayRectArray *rects = calloc(1, sizeof(OverlayRectArray));
+  OverlayRect title_background = {
+      {40, 10}, 20, 4, {0, 0, 0, 0.1}, {255, 255, 255, 0.1}};
+  OverlayRectArray_push(rects, title_background);
+
+  OverlayLineArray *lines = calloc(1, sizeof(OverlayLineArray));
+  OverlayLine left = {
+      {40, 10}, {40, 14}, 1, {0, 0, 0, 0.2}, {255, 255, 255, 0.2}};
+  OverlayLine top = {
+      {40, 10}, {60, 10}, 1, {0, 0, 0, 0.2}, {255, 255, 255, 0.2}};
+  OverlayLine right = {
+      {60, 10}, {60, 14}, 1, {0, 0, 0, 0.2}, {255, 255, 255, 0.2}};
+  OverlayLine bottom = {
+      {40, 14}, {60, 14}, 1, {0, 0, 0, 0.2}, {255, 255, 255, 0.2}};
+
+  OverlayLineArray_push(lines, left);
+  OverlayLineArray_push(lines, top);
+  OverlayLineArray_push(lines, right);
+  OverlayLineArray_push(lines, bottom);
+
+  OverlayTextArray *texts = calloc(1, sizeof(OverlayTextArray));
+  OverlayText title_text = {{50, 12}, "Free Mode",  9,
+                            15,       {0, 0, 0, 1}, {255, 255, 255, 1}};
+
+  OverlayTextArray_push(texts, title_text);
+
+  overlay_state->base_background_color = (struct rgba){0, 0, 0, 0};
+  overlay_state->rects = rects;
+  overlay_state->lines = lines;
+  overlay_state->texts = texts;
+}
+
 int free_mode(void) {
+  int err;
+
   struct input_state *state = calloc(1, sizeof(struct input_state));
   struct input_events *events = calloc(1, sizeof(struct input_events));
   HeldEventArray *held = calloc(1, sizeof(HeldEventArray));
@@ -121,16 +162,27 @@ int free_mode(void) {
 
   struct overlay_state *overlay_state = calloc(1, sizeof(struct overlay_state));
 
-  overlay_state->base_background_color = (struct rgba){0, 0, 0, 0};
+  setup_free_mode_overlay_hint(overlay_state);
 
   state->events = events;
   state->mods = modifiers;
   state->overlay = overlay_state;
 
-  int err = virtual_keyboard_override("/dev/input/event3", state);
+  pthread_t overlay_thread;
+  if (pthread_create(&overlay_thread, NULL, overlay_thread_fn,
+                     state->overlay) != 0) {
+    fprintf(stderr, "Overlay thread creation failed\n");
+    free_mode_destroy(state);
+    return -1;
+  }
+
+  err = virtual_keyboard_override("/dev/input/event3", state);
   if (err) {
     fprintf(stderr, "Free mode failed to initialize virtual device\n");
   }
+
+  overlay_stop();
+  pthread_join(overlay_thread, NULL);
   free_mode_destroy(state);
   return 0;
 }

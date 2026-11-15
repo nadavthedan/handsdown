@@ -30,8 +30,9 @@ static void draw_rects(cairo_t *cr, const OverlayRectArray rects, double width,
     set_source(cr, pick_color(rect.color_primary, rect.color_secondary,
                               use_secondary));
     cairo_rectangle(cr, percent_to_pixels(rect.p.x_percent, width),
-                    percent_to_pixels(rect.p.y_percent, height), rect.width,
-                    rect.height);
+                    percent_to_pixels(rect.p.y_percent, height),
+                    percent_to_pixels(rect.width_percent, width),
+                    percent_to_pixels(rect.height_percent, height));
     cairo_fill(cr);
   }
 }
@@ -138,6 +139,15 @@ int overlay_create(struct overlay_state *overlay) {
   gtk_widget_set_app_paintable(window, TRUE);
   gtk_widget_show_all(window);
   gtk_main();
+  gtk_widget_destroy(window);
 
   return 0;
 }
+
+static gboolean quit_main_loop(gpointer data) {
+  (void)data;
+  gtk_main_quit();
+  return G_SOURCE_REMOVE;
+}
+
+void overlay_stop(void) { g_idle_add(quit_main_loop, NULL); }

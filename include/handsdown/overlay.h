@@ -20,8 +20,8 @@ struct overlay_point {
 
 typedef struct {
   struct overlay_point p;
-  double width;
-  double height;
+  double width_percent;
+  double height_percent;
   struct rgba color_primary;
   struct rgba color_secondary;
 } OverlayRect;
@@ -64,5 +64,7 @@ struct overlay_state {
 };
 
 int overlay_create(struct overlay_state *options);
+
+void overlay_stop(void);
 
 #endif
