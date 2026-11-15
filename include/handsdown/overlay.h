@@ -43,15 +43,15 @@ typedef struct {
   struct rgba color_secondary;
 } OverlayText;
 
-typedef struct Overlay Overlay;
+struct overlay_state;
 
-typedef void (*KeyHandler)(Overlay *overlay, guint keyval);
+typedef void (*KeyHandler)(struct overlay_state *overlay, guint keyval);
 
 DEFINE_ARRAY(OverlayRect, OverlayRectArray)
 DEFINE_ARRAY(OverlayLine, OverlayLineArray)
 DEFINE_ARRAY(OverlayText, OverlayTextArray)
 
-struct Overlay {
+struct overlay_state {
   struct rgba base_background_color;
   bool is_color_secondary;
   double width;
@@ -63,6 +63,6 @@ struct Overlay {
   KeyHandler key_release_handler;
 };
 
-int overlay_create(Overlay *options);
+int overlay_create(struct overlay_state *options);
 
 #endif

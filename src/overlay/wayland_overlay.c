@@ -1,4 +1,3 @@
-#include "gdk/gdkkeysyms.h"
 #include "glib-object.h"
 #include "glib.h"
 #include "overlay.h"
@@ -78,7 +77,7 @@ static void draw_texts(cairo_t *cr, const OverlayTextArray texts, double width,
 }
 
 static gboolean on_draw(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
-  Overlay *overlay = user_data;
+  struct overlay_state *overlay = user_data;
   overlay->width = gtk_widget_get_allocated_width(widget);
   overlay->height = gtk_widget_get_allocated_height(widget);
 
@@ -104,30 +103,7 @@ static void on_realize(GtkWidget *widget, gpointer data) {
   cairo_region_destroy(empty);
 }
 
-static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event,
-                             gpointer data) {
-  Overlay *overlay = data;
-  if (event->keyval == GDK_KEY_Escape) {
-    gtk_widget_destroy(widget);
-    return TRUE;
-  }
-  if (overlay->key_down_handler) {
-    overlay->key_down_handler(overlay, event->keyval);
-  }
-  return TRUE;
-}
-
-static gboolean on_key_release(GtkWidget *widget, GdkEventKey *event,
-                               gpointer data) {
-  (void)widget;
-  Overlay *overlay = data;
-  if (overlay->key_release_handler) {
-    overlay->key_release_handler(overlay, event->keyval);
-  }
-  return TRUE;
-}
-
-int overlay_create(Overlay *overlay) {
+int overlay_create(struct overlay_state *overlay) {
   gtk_init(NULL, NULL);
   GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
@@ -158,10 +134,6 @@ int overlay_create(Overlay *overlay) {
   g_signal_connect(window, "draw", G_CALLBACK(on_draw), overlay);
   g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
   g_signal_connect(window, "realize", G_CALLBACK(on_realize), NULL);
-  // g_signal_connect(window, "key-press-event", G_CALLBACK(on_key_press),
-  //                  overlay);
-  // g_signal_connect(window, "key-release-event", G_CALLBACK(on_key_release),
-  //                  overlay);
 
   gtk_widget_set_app_paintable(window, TRUE);
   gtk_widget_show_all(window);

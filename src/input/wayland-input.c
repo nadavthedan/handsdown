@@ -34,7 +34,7 @@ static int held_event_index(unsigned int code, HeldEventArray *events) {
   if (events == NULL) {
     return -1;
   }
-  for (int i = 0; i < events->len; i++) {
+  for (size_t i = 0; i < events->len; i++) {
     if (code == events->data[i].key)
       return i;
   }
@@ -44,7 +44,7 @@ static int macro_event_index(unsigned int code, MacroEventArray *events) {
   if (events == NULL) {
     return -1;
   }
-  for (int i = 0; i < events->len; i++) {
+  for (size_t i = 0; i < events->len; i++) {
     if (code == events->data[i].key)
       return i;
   }
@@ -54,7 +54,7 @@ static int button_event_index(unsigned int code, ButtonEventArray *events) {
   if (events == NULL) {
     return -1;
   }
-  for (int i = 0; i < events->len; i++) {
+  for (size_t i = 0; i < events->len; i++) {
     if (code == events->data[i].key)
       return i;
   }
@@ -180,12 +180,12 @@ static int grab_keyboard(int keyboard_fd, struct libevdev *input) {
 }
 
 static int execute_held_actions(const struct input_event *event,
-                                struct input_events *events) {
-  int index = held_event_index(event->code, events->held_events);
+                                HeldEventArray *held_events) {
+  int index = held_event_index(event->code, held_events);
   if (index < 0)
     return 0;
 
-  HeldEvent *held = &events->held_events->data[index];
+  HeldEvent *held = &held_events->data[index];
   if (event->value == 1)
     held->active = true;
   else if (event->value == 0)
@@ -195,12 +195,12 @@ static int execute_held_actions(const struct input_event *event,
 }
 
 static int execute_button_actions(const struct input_event *event,
-                                  struct input_events *events) {
-  int index = button_event_index(event->code, events->button_events);
+                                  ButtonEventArray *button_events) {
+  int index = button_event_index(event->code, button_events);
   if (index < 0)
     return 0;
 
-  ButtonEvent *button = &events->button_events->data[index];
+  ButtonEvent *button = &button_events->data[index];
   if (event->value == 1) {
     if (emit(EV_KEY, button->button, 1) < 0)
       return -1;
@@ -213,47 +213,51 @@ static int execute_button_actions(const struct input_event *event,
 }
 
 static int execute_macro_actions(const struct input_event *event,
-                                 struct input_events *events) {
-  int index = macro_event_index(event->code, events->macro_events);
+                                 struct input_state *state) {
+  if (!(state && state->events && state->events->macro_events))
+    return -1;
+  MacroEventArray *macro_events = state->events->macro_events;
+  int index = macro_event_index(event->code, macro_events);
   if (index < 0)
     return 0;
 
-  return events->macro_events->data[index].action() < 0 ? -1 : 1;
+  return macro_events->data[index].action(state) < 0 ? -1 : 1;
 }
 
 static int handle_event(const struct input_event *event,
-                        struct input_events *events) {
+                        struct input_state *state) {
   if (event->type == EV_SYN)
     return emit(event->type, event->code, event->value);
 
   if (event->type != EV_KEY)
     return emit(event->type, event->code, event->value);
 
-  int handled = execute_held_actions(event, events);
+  int handled = execute_held_actions(event, state->events->held_events);
   if (handled < 0)
     return -1;
   if (handled > 0)
     return 0;
 
-  handled = execute_button_actions(event, events);
+  handled = execute_button_actions(event, state->events->button_events);
   if (handled < 0)
     return -1;
   if (handled > 0)
     return 0;
 
-  if (execute_macro_actions(event, events) < 0)
+  if (execute_macro_actions(event, state) < 0)
     return -1;
 
   return emit(event->type, event->code, event->value);
 }
 
-static int held_actions(struct input_events *ev) {
-  if (ev->held_events == NULL)
+static int held_actions(struct input_state *state) {
+  if (!(state && state->events && state->events->held_events))
     return -1;
-  for (int i = 0; i < ev->held_events->len; i++) {
-    HeldEvent held = ev->held_events->data[i];
+  HeldEventArray *held_events = state->events->held_events;
+  for (size_t i = 0; i < held_events->len; i++) {
+    HeldEvent held = held_events->data[i];
     if (held.active) {
-      int ret = held.interval_action();
+      int ret = held.interval_action(state);
       if (ret < 0)
         return ret;
     }
@@ -262,7 +266,7 @@ static int held_actions(struct input_events *ev) {
 }
 
 int virtual_keyboard_override(char *physical_keyboard_device_path,
-                              struct input_events *events) {
+                              struct input_state *state) {
   printf("start\n");
   int keyboard_fd =
       open(physical_keyboard_device_path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
@@ -344,7 +348,7 @@ int virtual_keyboard_override(char *physical_keyboard_device_path,
         }
 
         read_flags = LIBEVDEV_READ_FLAG_NORMAL;
-        if (handle_event(&ev, events) < 0) {
+        if (handle_event(&ev, state) < 0) {
           fprintf(stderr, "Could not forward input event\n");
           stopping = 1;
           break;
@@ -356,7 +360,7 @@ int virtual_keyboard_override(char *physical_keyboard_device_path,
       break;
     }
 
-    if (held_actions(events) < 0) {
+    if (held_actions(state) < 0) {
       fprintf(stderr, "Could not emit mouse movement\n");
       break;
     }

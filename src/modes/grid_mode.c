@@ -21,8 +21,8 @@ static void create_grid_cross(OverlayLineArray *lines, double min_x_percent,
                                              {0, 0, 0, 1}});
 }
 
-Overlay *grid_overlay_fourway_split_init(void) {
-  Overlay *overlay = calloc(1, sizeof(Overlay));
+struct overlay_state *grid_overlay_fourway_split_init(void) {
+  struct overlay_state *overlay = calloc(1, sizeof(struct overlay_state));
   if (!overlay) {
     return NULL;
   }
@@ -46,7 +46,7 @@ Overlay *grid_overlay_fourway_split_init(void) {
   return overlay;
 }
 
-void grid_overlay_fourway_split_destroy(Overlay *overlay) {
+void grid_overlay_fourway_split_destroy(struct overlay_state *overlay) {
   if (!overlay) {
     return;
   }
@@ -61,7 +61,7 @@ void grid_overlay_fourway_split_destroy(Overlay *overlay) {
 }
 
 int grid_mode_four_way_rec_split(void) {
-  Overlay *overlay = grid_overlay_fourway_split_init();
+  struct overlay_state *overlay = grid_overlay_fourway_split_init();
   if (!overlay) {
     return 1;
   }

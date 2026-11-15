@@ -1,63 +1,94 @@
 #include "input.h"
+#include "overlay.h"
 #include <linux/input-event-codes.h>
 #include <stdio.h>
 
-static int up_interval_action(void) {
+static int up_interval_action(struct input_state *state) {
+  (void)state;
   if (emit(EV_REL, REL_Y, -1 * 3) < 0 || sync_output() < 0)
     return -1;
 
   return 0;
 }
 
-static int left_interval_action(void) {
+static int left_interval_action(struct input_state *state) {
+  (void)state;
   if (emit(EV_REL, REL_X, -1 * 3) < 0 || sync_output() < 0)
     return -1;
 
   return 0;
 }
 
-static int down_interval_action(void) {
+static int down_interval_action(struct input_state *state) {
+  (void)state;
   if (emit(EV_REL, REL_Y, 1 * 3) < 0 || sync_output() < 0)
     return -1;
 
   return 0;
 }
 
-static int right_interval_action(void) {
+static int right_interval_action(struct input_state *state) {
+  (void)state;
   if (emit(EV_REL, REL_X, 1 * 3) < 0 || sync_output() < 0)
     return -1;
 
   return 0;
 }
 
-static int exit_macro(void) {
+static int exit_macro(struct input_state *state) {
+  (void)state;
   stop_virtual_keyboard_override();
   return 0;
 }
 
-static int free_mode_destroy(struct input_events *ev) {
-  if (ev->held_events) {
-    free(ev->held_events->data);
-    free(ev->held_events);
+static int free_mode_destroy(struct input_state *state) {
+  if (!state) {
+    return 0;
+  }
+  if (state->events) {
+    if (state->events->held_events) {
+      free(state->events->held_events->data);
+      free(state->events->held_events);
+    }
+
+    if (state->events->macro_events) {
+      free(state->events->macro_events->data);
+      free(state->events->macro_events);
+    }
+
+    if (state->events->button_events) {
+      free(state->events->button_events->data);
+      free(state->events->button_events);
+    }
   }
 
-  if (ev->macro_events) {
-    free(ev->macro_events->data);
-    free(ev->macro_events);
+  if (state->overlay) {
+    if (state->overlay->rects) {
+      free(state->overlay->rects->data);
+      free(state->overlay->rects);
+    }
+    if (state->overlay->lines) {
+      free(state->overlay->lines->data);
+      free(state->overlay->lines);
+    }
+    if (state->overlay->texts) {
+      free(state->overlay->texts->data);
+      free(state->overlay->texts);
+    }
   }
 
-  if (ev->button_events) {
-    free(ev->button_events->data);
-    free(ev->button_events);
-  }
+  free(state->events);
+  free(state->overlay);
+  free(state->mods);
 
-  free(ev);
+  free(state);
 
   return 0;
 }
 
 int free_mode(void) {
-  struct input_events *ev = calloc(1, sizeof(struct input_events));
+  struct input_state *state = calloc(1, sizeof(struct input_state));
+  struct input_events *events = calloc(1, sizeof(struct input_events));
   HeldEventArray *held = calloc(1, sizeof(HeldEventArray));
 
   HeldEvent up = {KEY_W, false, up_interval_action};
@@ -82,14 +113,24 @@ int free_mode(void) {
   ButtonEvent left_click = {KEY_SPACE, BTN_LEFT};
   ButtonEventArray_push(buttons, left_click);
 
-  ev->macro_events = macro;
-  ev->held_events = held;
-  ev->button_events = buttons;
+  events->macro_events = macro;
+  events->held_events = held;
+  events->button_events = buttons;
 
-  int err = virtual_keyboard_override("/dev/input/event3", ev);
+  struct input_modifiers *modifiers = calloc(1, sizeof(struct input_modifiers));
+
+  struct overlay_state *overlay_state = calloc(1, sizeof(struct overlay_state));
+
+  overlay_state->base_background_color = (struct rgba){0, 0, 0, 0};
+
+  state->events = events;
+  state->mods = modifiers;
+  state->overlay = overlay_state;
+
+  int err = virtual_keyboard_override("/dev/input/event3", state);
   if (err) {
     fprintf(stderr, "Free mode failed to initialize virtual device\n");
   }
-  free_mode_destroy(ev);
+  free_mode_destroy(state);
   return 0;
 }
