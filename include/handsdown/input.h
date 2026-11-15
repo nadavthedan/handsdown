@@ -26,10 +26,11 @@ struct input_events {
   MacroEventArray *macro_events;
 };
 
-int virtual_device_init(char *physical_keyboard_device_path,
-                        struct input_events *ev);
+int virtual_keyboard_override(char *physical_keyboard_device_path,
+                              struct input_events *ev);
 int emit(unsigned int type, unsigned int code, int value);
 int sync_output(void);
+void stop_virtual_keyboard_override(void);
 // -------------------------------------------
 
 #endif

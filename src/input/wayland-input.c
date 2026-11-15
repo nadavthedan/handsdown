@@ -53,6 +53,140 @@ static int macro_event_index(unsigned int code, MacroEventArray *events) {
   return -1;
 }
 
+#define KEY_RELEASE_TIMEOUT_MS 2000
+#define KEY_POLL_INTERVAL_MS 10
+
+static int any_key_down(int fd, bool *down) {
+  unsigned char keys[(KEY_CNT + 7) / 8];
+
+  memset(keys, 0, sizeof keys);
+  if (ioctl(fd, EVIOCGKEY(sizeof keys), keys) < 0)
+    return -1;
+
+  *down = false;
+  for (size_t i = 0; i < sizeof keys; i++) {
+    if (keys[i] != 0) {
+      *down = true;
+      break;
+    }
+  }
+  return 0;
+}
+
+static int drain_events(struct libevdev *input) {
+  struct input_event ev;
+  unsigned int flags = LIBEVDEV_READ_FLAG_NORMAL;
+
+  for (;;) {
+    int rc = libevdev_next_event(input, flags, &ev);
+
+    if (rc == -EAGAIN) {
+      if (flags == LIBEVDEV_READ_FLAG_SYNC) {
+        flags = LIBEVDEV_READ_FLAG_NORMAL;
+        continue;
+      }
+      return 0;
+    }
+
+    if (rc == LIBEVDEV_READ_STATUS_SYNC) {
+      flags = LIBEVDEV_READ_FLAG_SYNC;
+      continue;
+    }
+
+    if (rc < 0)
+      return rc;
+  }
+}
+
+static int wait_for_keys_released(int keyboard_fd, struct libevdev *input,
+                                  int timeout_ms) {
+  struct pollfd pfd = {.fd = keyboard_fd, .events = POLLIN};
+  int waited = 0;
+
+  for (;;) {
+    bool down;
+    if (any_key_down(keyboard_fd, &down) < 0) {
+      fprintf(stderr, "EVIOCGKEY: %s\n", strerror(errno));
+      return -1;
+    }
+
+    if (!down)
+      break;
+
+    if (waited >= timeout_ms) {
+      fprintf(stderr, "Timed out waiting for all keys to be released\n");
+      return -ETIMEDOUT;
+    }
+
+    int rc = drain_events(input);
+    if (rc < 0) {
+      fprintf(stderr, "Could not drain input events: %s\n", strerror(-rc));
+      return rc;
+    }
+
+    int pr = poll(&pfd, 1, KEY_POLL_INTERVAL_MS);
+    if (pr < 0 && errno != EINTR) {
+      fprintf(stderr, "poll: %s\n", strerror(errno));
+      return -1;
+    }
+
+    if (pr > 0 && (pfd.revents & (POLLERR | POLLHUP | POLLNVAL))) {
+      fprintf(stderr, "Keyboard device disconnected or errored\n");
+      return -1;
+    }
+
+    waited += KEY_POLL_INTERVAL_MS;
+  }
+
+  return drain_events(input);
+}
+
+static int grab_keyboard(int keyboard_fd, struct libevdev *input) {
+  for (;;) {
+    int rc = wait_for_keys_released(keyboard_fd, input, KEY_RELEASE_TIMEOUT_MS);
+    if (rc < 0)
+      return rc;
+
+    rc = libevdev_grab(input, LIBEVDEV_GRAB);
+    if (rc < 0) {
+      fprintf(stderr, "EVIOCGRAB: %s\n", strerror(-rc));
+      return rc;
+    }
+
+    bool down;
+    if (any_key_down(keyboard_fd, &down) < 0) {
+      fprintf(stderr, "EVIOCGKEY: %s\n", strerror(errno));
+      libevdev_grab(input, LIBEVDEV_UNGRAB);
+      return -1;
+    }
+
+    if (!down)
+      return 0;
+
+    rc = libevdev_grab(input, LIBEVDEV_UNGRAB);
+    if (rc < 0) {
+      fprintf(stderr, "Could not release keyboard grab: %s\n", strerror(-rc));
+      return rc;
+    }
+  }
+}
+
+static void sync_held_state(const struct input_event *event,
+                            struct input_events *events) {
+  if (event->type != EV_KEY)
+    return;
+
+  int i = held_event_index(event->code, events->held_events);
+  if (i < 0)
+    return;
+
+  HeldEvent *held = &events->held_events->data[i];
+  if (event->value == 1)
+    held->physical_down = true;
+  else if (event->value == 0)
+    held->physical_down = false;
+}
+
 static int set_mode(bool enable, struct input_events *ev) {
   mode_on = enable;
 
@@ -144,8 +278,8 @@ static int held_actions(struct input_events *ev) {
   return 0;
 }
 
-int virtual_device_init(char *physical_keyboard_device_path,
-                        struct input_events *events) {
+int virtual_keyboard_override(char *physical_keyboard_device_path,
+                              struct input_events *events) {
   printf("start\n");
   int keyboard_fd =
       open(physical_keyboard_device_path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
@@ -184,8 +318,11 @@ int virtual_device_init(char *physical_keyboard_device_path,
     return 1;
   }
 
-  if (ioctl(keyboard_fd, EVIOCGRAB, 1) < 0) {
-    fprintf(stderr, "EVIOCGRAB: %s\n", strerror(errno));
+  struct sigaction sa = {.sa_handler = on_signal};
+  sigaction(SIGINT, &sa, NULL);
+  sigaction(SIGTERM, &sa, NULL);
+
+  if (grab_keyboard(keyboard_fd, input) < 0) {
     libevdev_uinput_destroy(virtual_device);
     libevdev_free(input);
     close(keyboard_fd);
@@ -193,10 +330,6 @@ int virtual_device_init(char *physical_keyboard_device_path,
   }
 
   fprintf(stderr, "F12 toggles mouse mode, Ctrl-C exits.\n");
-
-  struct sigaction sa = {.sa_handler = on_signal};
-  sigaction(SIGINT, &sa, NULL);
-  sigaction(SIGTERM, &sa, NULL);
 
   struct pollfd pfd = {.fd = keyboard_fd, .events = POLLIN};
 
@@ -208,17 +341,27 @@ int virtual_device_init(char *physical_keyboard_device_path,
     }
 
     if (pr > 0 && (pfd.revents & POLLIN)) {
+      unsigned int read_flags = LIBEVDEV_READ_FLAG_NORMAL;
       for (;;) {
         struct input_event ev;
-        rc = libevdev_next_event(input, LIBEVDEV_READ_FLAG_NORMAL, &ev);
+        rc = libevdev_next_event(input, read_flags, &ev);
 
-        if (rc == -EAGAIN)
+        if (rc == -EAGAIN) {
+          read_flags = LIBEVDEV_READ_FLAG_NORMAL;
           break;
-        if (rc != 0) {
+        }
+        if (rc == LIBEVDEV_READ_STATUS_SYNC) {
+          read_flags = LIBEVDEV_READ_FLAG_SYNC;
+          sync_held_state(&ev, events);
+          continue;
+        }
+        if (rc != LIBEVDEV_READ_STATUS_SUCCESS) {
           fprintf(stderr, "Input read error (libevdev status %d)\n", rc);
           stopping = 1;
           break;
         }
+
+        read_flags = LIBEVDEV_READ_FLAG_NORMAL;
         if (handle_event(&ev, events) < 0) {
           fprintf(stderr, "Could not forward input event\n");
           stopping = 1;
@@ -245,9 +388,11 @@ int virtual_device_init(char *physical_keyboard_device_path,
   }
   sync_output();
 
-  ioctl(keyboard_fd, EVIOCGRAB, 0);
+  libevdev_grab(input, LIBEVDEV_UNGRAB);
   libevdev_uinput_destroy(virtual_device);
   libevdev_free(input);
   close(keyboard_fd);
   return 0;
 }
+
+void stop_virtual_keyboard_override(void) { stopping = 1; }
