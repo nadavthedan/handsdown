@@ -5,9 +5,6 @@
 
 typedef struct {
   unsigned int key;
-  bool physical_down;
-  bool forwarded_down;
-  bool supress_until_release;
   bool active;
   int (*interval_action)(void);
 } HeldEvent;
@@ -18,12 +15,19 @@ typedef struct {
   int (*action)(void);
 } MacroEvent;
 
+typedef struct {
+  unsigned int key;
+  unsigned int button;
+} ButtonEvent;
+
 DEFINE_ARRAY(HeldEvent, HeldEventArray)
 DEFINE_ARRAY(MacroEvent, MacroEventArray)
+DEFINE_ARRAY(ButtonEvent, ButtonEventArray)
 
 struct input_events {
   HeldEventArray *held_events;
   MacroEventArray *macro_events;
+  ButtonEventArray *button_events;
 };
 
 int virtual_keyboard_override(char *physical_keyboard_device_path,

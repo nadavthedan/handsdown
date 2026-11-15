@@ -46,6 +46,11 @@ static int free_mode_destroy(struct input_events *ev) {
     free(ev->macro_events);
   }
 
+  if (ev->button_events) {
+    free(ev->button_events->data);
+    free(ev->button_events);
+  }
+
   free(ev);
 
   return 0;
@@ -55,10 +60,10 @@ int free_mode(void) {
   struct input_events *ev = calloc(1, sizeof(struct input_events));
   HeldEventArray *held = calloc(1, sizeof(HeldEventArray));
 
-  HeldEvent up = {KEY_W, false, false, false, false, up_interval_action};
-  HeldEvent left = {KEY_A, false, false, false, false, left_interval_action};
-  HeldEvent down = {KEY_S, false, false, false, false, down_interval_action};
-  HeldEvent right = {KEY_D, false, false, false, false, right_interval_action};
+  HeldEvent up = {KEY_W, false, up_interval_action};
+  HeldEvent left = {KEY_A, false, left_interval_action};
+  HeldEvent down = {KEY_S, false, down_interval_action};
+  HeldEvent right = {KEY_D, false, right_interval_action};
 
   HeldEventArray_push(held, up);
   HeldEventArray_push(held, left);
@@ -73,8 +78,13 @@ int free_mode(void) {
   MacroEventArray_push(macro, exit1);
   MacroEventArray_push(macro, exit2);
 
+  ButtonEventArray *buttons = calloc(1, sizeof(ButtonEventArray));
+  ButtonEvent left_click = {KEY_SPACE, BTN_LEFT};
+  ButtonEventArray_push(buttons, left_click);
+
   ev->macro_events = macro;
   ev->held_events = held;
+  ev->button_events = buttons;
 
   int err = virtual_keyboard_override("/dev/input/event3", ev);
   if (err) {

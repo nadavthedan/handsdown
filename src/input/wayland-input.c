@@ -25,8 +25,6 @@ static void on_signal(int sig) {
   stopping = 1;
 }
 
-static bool mode_on;
-
 int emit(unsigned int type, unsigned int code, int value) {
   return libevdev_uinput_write_event(virtual_device, type, code, value);
 }
@@ -43,6 +41,16 @@ static int held_event_index(unsigned int code, HeldEventArray *events) {
   return -1;
 }
 static int macro_event_index(unsigned int code, MacroEventArray *events) {
+  if (events == NULL) {
+    return -1;
+  }
+  for (int i = 0; i < events->len; i++) {
+    if (code == events->data[i].key)
+      return i;
+  }
+  return -1;
+}
+static int button_event_index(unsigned int code, ButtonEventArray *events) {
   if (events == NULL) {
     return -1;
   }
@@ -171,47 +179,46 @@ static int grab_keyboard(int keyboard_fd, struct libevdev *input) {
   }
 }
 
-static void sync_held_state(const struct input_event *event,
-                            struct input_events *events) {
-  if (event->type != EV_KEY)
-    return;
+static int execute_held_actions(const struct input_event *event,
+                                struct input_events *events) {
+  int index = held_event_index(event->code, events->held_events);
+  if (index < 0)
+    return 0;
 
-  int i = held_event_index(event->code, events->held_events);
-  if (i < 0)
-    return;
-
-  HeldEvent *held = &events->held_events->data[i];
+  HeldEvent *held = &events->held_events->data[index];
   if (event->value == 1)
-    held->physical_down = true;
+    held->active = true;
   else if (event->value == 0)
-    held->physical_down = false;
+    held->active = false;
+
+  return 1;
 }
 
-static int set_mode(bool enable, struct input_events *ev) {
-  mode_on = enable;
+static int execute_button_actions(const struct input_event *event,
+                                  struct input_events *events) {
+  int index = button_event_index(event->code, events->button_events);
+  if (index < 0)
+    return 0;
 
-  if (enable) {
-    for (int i = 0; i < ev->held_events->len; i++) {
-      HeldEvent *held = &ev->held_events->data[i];
-
-      // If key was forwarded as down, release it on the virtual keyboard so the
-      // focused app own't leave it stuck.
-      if (held->forwarded_down) {
-        if (emit(EV_KEY, held->key, 0) < 0) {
-          return -1;
-        }
-        held->forwarded_down = false;
-      }
-
-      // If held when mode starts, use it for movement and eat its release.
-      held->supress_until_release = held->physical_down;
-      held->active = false;
-    }
-    return sync_output();
+  ButtonEvent *button = &events->button_events->data[index];
+  if (event->value == 1) {
+    if (emit(EV_KEY, button->button, 1) < 0)
+      return -1;
+  } else if (event->value == 0) {
+    if (emit(EV_KEY, button->button, 0) < 0)
+      return -1;
   }
 
-  // Keep supress_until_release set until any held movement key is released.
-  return 0;
+  return sync_output() < 0 ? -1 : 1;
+}
+
+static int execute_macro_actions(const struct input_event *event,
+                                 struct input_events *events) {
+  int index = macro_event_index(event->code, events->macro_events);
+  if (index < 0)
+    return 0;
+
+  return events->macro_events->data[index].action() < 0 ? -1 : 1;
 }
 
 static int handle_event(const struct input_event *event,
@@ -222,50 +229,20 @@ static int handle_event(const struct input_event *event,
   if (event->type != EV_KEY)
     return emit(event->type, event->code, event->value);
 
-  if (event->code == KEY_F12) {
-    if (event->value == 1 && set_mode(!mode_on, events) < 0) {
-      return -1;
-    }
+  int handled = execute_held_actions(event, events);
+  if (handled < 0)
+    return -1;
+  if (handled > 0)
     return 0;
-  }
 
-  int event_index;
-  event_index = held_event_index(event->code, events->held_events);
-  if (event_index >= 0) {
-    HeldEvent *held = &events->held_events->data[event_index];
-    if (event->value == 1)
-      held->physical_down = true;
-    if (event->value == 0)
-      held->physical_down = false;
+  handled = execute_button_actions(event, events);
+  if (handled < 0)
+    return -1;
+  if (handled > 0)
+    return 0;
 
-    if (mode_on) {
-      if (event->value == 1) {
-        held->active = true;
-        held->supress_until_release = true;
-      } else if (event->value == 0) {
-        held->active = false;
-        held->supress_until_release = false;
-      }
-      return 0;
-    }
-
-    if (held->supress_until_release) {
-      if (event->value == 0)
-        held->supress_until_release = false;
-      return 0; // Eats release for keys consumed in mouse mode.
-    }
-
-    if (event->value == 1) {
-      held->forwarded_down = true;
-    } else if (event->value == 0) {
-      held->forwarded_down = false;
-    }
-  }
-
-  event_index = macro_event_index(event->code, events->macro_events);
-  if (event_index >= 0) {
-    events->macro_events->data->action();
-  }
+  if (execute_macro_actions(event, events) < 0)
+    return -1;
 
   return emit(event->type, event->code, event->value);
 }
@@ -335,7 +312,7 @@ int virtual_keyboard_override(char *physical_keyboard_device_path,
     return -1;
   }
 
-  fprintf(stderr, "F12 toggles mouse mode, Ctrl-C exits.\n");
+  fprintf(stderr, "Ctrl-C exits.\n");
 
   struct pollfd pfd = {.fd = keyboard_fd, .events = POLLIN};
 
@@ -358,7 +335,6 @@ int virtual_keyboard_override(char *physical_keyboard_device_path,
         }
         if (rc == LIBEVDEV_READ_STATUS_SYNC) {
           read_flags = LIBEVDEV_READ_FLAG_SYNC;
-          sync_held_state(&ev, events);
           continue;
         }
         if (rc != LIBEVDEV_READ_STATUS_SUCCESS) {
@@ -380,19 +356,11 @@ int virtual_keyboard_override(char *physical_keyboard_device_path,
       break;
     }
 
-    if (mode_on && held_actions(events) < 0) {
+    if (held_actions(events) < 0) {
       fprintf(stderr, "Could not emit mouse movement\n");
       break;
     }
   }
-
-  for (int i = 0; i < events->held_events->len; i++) {
-    HeldEvent held = events->held_events->data[i];
-    if (held.forwarded_down) {
-      emit(EV_KEY, held.key, 0);
-    }
-  }
-  sync_output();
 
   libevdev_grab(input, LIBEVDEV_UNGRAB);
   libevdev_uinput_destroy(virtual_device);
