@@ -9,6 +9,8 @@
 
 #define PERCENT 100.0
 
+static GtkWidget *overlay_window;
+
 static void set_source(cairo_t *cr, struct rgba color) {
   cairo_set_source_rgba(cr, color.red, color.green, color.blue, color.alpha);
 }
@@ -107,6 +109,7 @@ static void on_realize(GtkWidget *widget, gpointer data) {
 int overlay_create(struct overlay_state *overlay) {
   gtk_init(NULL, NULL);
   GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+  overlay_window = window;
 
   gtk_layer_init_for_window(GTK_WINDOW(window));
   gtk_layer_set_layer(GTK_WINDOW(window), GTK_LAYER_SHELL_LAYER_OVERLAY);
@@ -140,9 +143,19 @@ int overlay_create(struct overlay_state *overlay) {
   gtk_widget_show_all(window);
   gtk_main();
   gtk_widget_destroy(window);
+  overlay_window = NULL;
 
   return 0;
 }
+
+static gboolean overlay_queue_draw_cb(gpointer data) {
+  (void)data;
+  if (overlay_window)
+    gtk_widget_queue_draw(overlay_window);
+  return G_SOURCE_REMOVE;
+}
+
+void overlay_redraw(void) { g_idle_add(overlay_queue_draw_cb, NULL); }
 
 static gboolean quit_main_loop(gpointer data) {
   (void)data;

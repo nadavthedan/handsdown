@@ -40,12 +40,14 @@ static int held_event_index(unsigned int code, HeldEventArray *events) {
   }
   return -1;
 }
-static int macro_event_index(unsigned int code, MacroEventArray *events) {
-  if (events == NULL) {
+static int macro_event_index(const struct input_event *event,
+                             MacroEventArray *macros) {
+  if (macros == NULL) {
     return -1;
   }
-  for (size_t i = 0; i < events->len; i++) {
-    if (code == events->data[i].key)
+  for (size_t i = 0; i < macros->len; i++) {
+    MacroEvent macro = macros->data[i];
+    if (event->code == macro.key && event->value == macro.value_to_trigger)
       return i;
   }
   return -1;
@@ -217,7 +219,7 @@ static int execute_macro_actions(const struct input_event *event,
   if (!(state && state->events && state->events->macro_events))
     return -1;
   MacroEventArray *macro_events = state->events->macro_events;
-  int index = macro_event_index(event->code, macro_events);
+  int index = macro_event_index(event, macro_events);
   if (index < 0)
     return 0;
 
@@ -252,7 +254,7 @@ static int handle_event(const struct input_event *event,
 
 static int held_actions(struct input_state *state) {
   if (!(state && state->events && state->events->held_events))
-    return -1;
+    return 0;
   HeldEventArray *held_events = state->events->held_events;
   for (size_t i = 0; i < held_events->len; i++) {
     HeldEvent held = held_events->data[i];

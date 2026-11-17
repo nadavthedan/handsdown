@@ -64,7 +64,7 @@ struct overlay_state {
 };
 
 int overlay_create(struct overlay_state *options);
-
+void overlay_redraw(void);
 void overlay_stop(void);
 
 #endif
