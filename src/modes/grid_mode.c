@@ -83,21 +83,65 @@ static void move_text_to_latest_cross(OverlayTextArray *texts,
   }
 }
 
+static void focus_split_confinments(struct overlay_state *overlay,
+                                    double min_x_percent, double min_y_percent,
+                                    double max_x_percent,
+                                    double max_y_percent) {
+  create_grid_rect(overlay->rects, min_x_percent, min_y_percent, max_x_percent,
+                   max_y_percent);
+  create_grid_cross(overlay->lines, min_x_percent, min_y_percent, max_x_percent,
+                    max_y_percent);
+  move_text_to_latest_cross(overlay->texts, min_x_percent, min_y_percent,
+                            max_x_percent, max_y_percent);
+}
+
+static int focus_top_left_split(struct input_state *state) {
+  struct overlay_state *overlay = state->overlay;
+  OverlayRect last_rect = overlay->rects->data[overlay->rects->len - 1];
+  focus_split_confinments(overlay, last_rect.p.x_percent, last_rect.p.y_percent,
+                          last_rect.p.x_percent + (last_rect.width_percent / 2),
+                          last_rect.p.y_percent +
+                              (last_rect.height_percent / 2));
+
+  overlay_redraw();
+
+  return 0;
+}
+
 static int focus_top_right_split(struct input_state *state) {
   struct overlay_state *overlay = state->overlay;
   OverlayRect last_rect = overlay->rects->data[overlay->rects->len - 1];
-  create_grid_rect(
-      overlay->rects, last_rect.p.x_percent + (last_rect.width_percent) / 2,
+  focus_split_confinments(
+      overlay, last_rect.p.x_percent + (last_rect.width_percent) / 2,
       last_rect.p.y_percent, last_rect.p.x_percent + last_rect.width_percent,
       last_rect.p.y_percent + (last_rect.height_percent / 2));
-  create_grid_cross(
-      overlay->lines, last_rect.p.x_percent + (last_rect.width_percent) / 2,
-      last_rect.p.y_percent, last_rect.p.x_percent + last_rect.width_percent,
-      last_rect.p.y_percent + (last_rect.height_percent / 2));
-  move_text_to_latest_cross(
-      overlay->texts, last_rect.p.x_percent + (last_rect.width_percent) / 2,
-      last_rect.p.y_percent, last_rect.p.x_percent + last_rect.width_percent,
-      last_rect.p.y_percent + (last_rect.height_percent / 2));
+
+  overlay_redraw();
+
+  return 0;
+}
+
+static int focus_bottom_left_split(struct input_state *state) {
+  struct overlay_state *overlay = state->overlay;
+  OverlayRect last_rect = overlay->rects->data[overlay->rects->len - 1];
+  focus_split_confinments(overlay, last_rect.p.x_percent,
+                          last_rect.p.y_percent +
+                              (last_rect.height_percent / 2),
+                          last_rect.p.x_percent + (last_rect.width_percent / 2),
+                          last_rect.p.y_percent + last_rect.height_percent);
+
+  overlay_redraw();
+
+  return 0;
+}
+static int focus_bottom_right_split(struct input_state *state) {
+  struct overlay_state *overlay = state->overlay;
+  OverlayRect last_rect = overlay->rects->data[overlay->rects->len - 1];
+  focus_split_confinments(
+      overlay, last_rect.p.x_percent + (last_rect.width_percent) / 2,
+      last_rect.p.y_percent + (last_rect.height_percent) / 2,
+      last_rect.p.x_percent + last_rect.width_percent,
+      last_rect.p.y_percent + last_rect.height_percent);
 
   overlay_redraw();
 
@@ -184,9 +228,15 @@ int grid_mode_four_way_rec_split(void) {
 
   MacroEventArray *macros = calloc(1, sizeof(MacroEventArray));
 
+  MacroEvent top_left = {KEY_F, 1, focus_top_left_split};
   MacroEvent top_right = {KEY_J, 1, focus_top_right_split};
+  MacroEvent bottom_left = {KEY_D, 1, focus_bottom_left_split};
+  MacroEvent bottom_right = {KEY_K, 1, focus_bottom_right_split};
 
+  MacroEventArray_push(macros, top_left);
   MacroEventArray_push(macros, top_right);
+  MacroEventArray_push(macros, bottom_left);
+  MacroEventArray_push(macros, bottom_right);
 
   events->macro_events = macros;
   events->held_events = NULL;
