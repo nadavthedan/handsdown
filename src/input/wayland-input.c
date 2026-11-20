@@ -216,7 +216,7 @@ static int execute_button_actions(const struct input_event *event,
 
 static int execute_macro_actions(const struct input_event *event,
                                  struct input_state *state) {
-  if (!(state && state->events && state->events->macro_events))
+  if (!state->events && state->events->macro_events)
     return -1;
   MacroEventArray *macro_events = state->events->macro_events;
   int index = macro_event_index(event, macro_events);
@@ -226,30 +226,62 @@ static int execute_macro_actions(const struct input_event *event,
   return macro_events->data[index].action(state) < 0 ? -1 : 1;
 }
 
+static int toggle_modifiers(const struct input_event *event,
+                            struct input_modifiers *mods) {
+  if (!mods) {
+    return -1;
+  }
+  switch (event->code) {
+  case KEY_RIGHTSHIFT:
+  case KEY_LEFTSHIFT:
+    mods->shift = event->value;
+    return 1;
+  case KEY_RIGHTALT:
+  case KEY_LEFTALT:
+    mods->alt = event->value;
+    return 1;
+  case KEY_RIGHTCTRL:
+  case KEY_LEFTCTRL:
+    mods->ctrl = event->value;
+    return 1;
+  }
+
+  return 0;
+}
+
 static int handle_event(const struct input_event *event,
                         struct input_state *state) {
+  if (!state) {
+    return -1;
+  }
+
   if (event->type == EV_SYN)
     return emit(event->type, event->code, event->value);
 
   if (event->type != EV_KEY)
     return emit(event->type, event->code, event->value);
 
-  int handled = execute_held_actions(event, state->events->held_events);
-  if (handled < 0)
-    return -1;
-  if (handled > 0)
-    return 0;
+  bool event_handled = false;
 
-  handled = execute_button_actions(event, state->events->button_events);
-  if (handled < 0)
-    return -1;
-  if (handled > 0)
-    return 0;
+  if (toggle_modifiers(event, state->mods) > 0) {
+    // Don't set event toggled because modifiers
+    // could be used not for app binds.
+  }
 
-  if (execute_macro_actions(event, state) < 0)
-    return -1;
+  if (execute_held_actions(event, state->events->held_events) > 0)
+    event_handled = true;
 
-  return emit(event->type, event->code, event->value);
+  if (execute_button_actions(event, state->events->button_events) > 0)
+    event_handled = true;
+
+  if (execute_macro_actions(event, state) > 0)
+    event_handled = true;
+
+  if (!event_handled) {
+    return emit(event->type, event->code, event->value);
+  }
+
+  return 0;
 }
 
 static int held_actions(struct input_state *state) {
@@ -288,6 +320,8 @@ int virtual_keyboard_override(char *physical_keyboard_device_path,
   if (libevdev_enable_event_type(input, EV_REL) < 0 ||
       libevdev_enable_event_code(input, EV_REL, REL_X, NULL) < 0 ||
       libevdev_enable_event_code(input, EV_REL, REL_Y, NULL) < 0 ||
+      libevdev_enable_event_code(input, EV_REL, REL_WHEEL, NULL) < 0 ||
+      libevdev_enable_event_code(input, EV_REL, REL_HWHEEL, NULL) < 0 ||
       libevdev_enable_event_code(input, EV_KEY, BTN_LEFT, NULL) < 0 ||
       libevdev_enable_event_code(input, EV_KEY, BTN_RIGHT, NULL) < 0 ||
       libevdev_enable_event_code(input, EV_KEY, BTN_MIDDLE, NULL) < 0 ||

@@ -12,8 +12,8 @@
 int main(int argc, char *argv[]) {
   printf("This is handsdown the best tool!\n");
   // int fd = input_init();
-  // free_mode();
-  grid_mode_four_way_rec_split();
+  free_mode();
+  // grid_mode_four_way_rec_split();
   // input_click_left(fd);
 
   printf("INFO: exiting cleanly...\n");

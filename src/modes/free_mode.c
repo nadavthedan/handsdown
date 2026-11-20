@@ -4,9 +4,57 @@
 #include <pthread.h>
 #include <stdio.h>
 
+static int movement_speed(int base_speed, struct input_modifiers *mods) {
+  if (mods->shift) {
+    return base_speed * 2;
+  } else if (mods->alt) {
+    return base_speed / 4 || 1;
+  }
+  return base_speed;
+}
+
+static int tick_counter = 0;
+static int scroll_tick(int tick_wait) {
+  tick_counter++;
+  if (tick_counter % tick_wait == 0)
+    return 1;
+
+  return 0;
+}
+
+static int scroll_up_action(struct input_state *state) {
+  (void)state;
+  if (emit(EV_REL, REL_WHEEL, 1 * scroll_tick(5)) < 0 || sync_output() < 0)
+    return -1;
+
+  return 0;
+}
+static int scroll_down_action(struct input_state *state) {
+  (void)state;
+  if (emit(EV_REL, REL_WHEEL, -1 * scroll_tick(5)) < 0 || sync_output() < 0)
+    return -1;
+
+  return 0;
+}
+static int scroll_left_action(struct input_state *state) {
+  (void)state;
+  if (emit(EV_REL, REL_HWHEEL, -1 * scroll_tick(5)) < 0 || sync_output() < 0)
+    return -1;
+
+  return 0;
+}
+static int scroll_right_action(struct input_state *state) {
+  (void)state;
+  if (emit(EV_REL, REL_HWHEEL, 1 * scroll_tick(5)) < 0 || sync_output() < 0)
+    return -1;
+
+  return 0;
+}
+
 static int up_interval_action(struct input_state *state) {
   (void)state;
-  if (emit(EV_REL, REL_Y, -1 * 3) < 0 || sync_output() < 0)
+  if (emit(EV_REL, REL_Y, -1 * movement_speed(4, state->mods)) < 0 ||
+      sync_output() < 0)
     return -1;
 
   return 0;
@@ -14,7 +62,8 @@ static int up_interval_action(struct input_state *state) {
 
 static int left_interval_action(struct input_state *state) {
   (void)state;
-  if (emit(EV_REL, REL_X, -1 * 3) < 0 || sync_output() < 0)
+  if (emit(EV_REL, REL_X, -1 * movement_speed(4, state->mods)) < 0 ||
+      sync_output() < 0)
     return -1;
 
   return 0;
@@ -22,7 +71,8 @@ static int left_interval_action(struct input_state *state) {
 
 static int down_interval_action(struct input_state *state) {
   (void)state;
-  if (emit(EV_REL, REL_Y, 1 * 3) < 0 || sync_output() < 0)
+  if (emit(EV_REL, REL_Y, 1 * movement_speed(4, state->mods)) < 0 ||
+      sync_output() < 0)
     return -1;
 
   return 0;
@@ -30,7 +80,8 @@ static int down_interval_action(struct input_state *state) {
 
 static int right_interval_action(struct input_state *state) {
   (void)state;
-  if (emit(EV_REL, REL_X, 1 * 3) < 0 || sync_output() < 0)
+  if (emit(EV_REL, REL_X, 1 * movement_speed(4, state->mods)) < 0 ||
+      sync_output() < 0)
     return -1;
 
   return 0;
@@ -95,23 +146,32 @@ static void *overlay_thread_fn(void *arg) {
 static void setup_free_mode_overlay_hint(struct overlay_state *overlay_state) {
   OverlayRectArray *rects = calloc(1, sizeof(OverlayRectArray));
   OverlayRect title_background = {
-      {40, 10}, 20, 4, {0, 0, 0, 0.1}, {255, 255, 255, 0.1}};
+      {40, 10}, 20, 4, {255, 0, 132, 0.1}, {240, 40, 154, 0.3}};
   OverlayRectArray_push(rects, title_background);
 
   OverlayLineArray *lines = calloc(1, sizeof(OverlayLineArray));
-  OverlayLine left = {
-      {40, 10}, {40, 14}, 1, {0, 0, 0, 0.2}, {255, 255, 255, 0.2}};
-  OverlayLine top = {
-      {40, 10}, {60, 10}, 1, {0, 0, 0, 0.2}, {255, 255, 255, 0.2}};
-  OverlayLine right = {
-      {60, 10}, {60, 14}, 1, {0, 0, 0, 0.2}, {255, 255, 255, 0.2}};
+  OverlayLine left = {{40, 10}, {40, 14}, 2, {255, 0, 132, 0.5}, {0, 0, 0, 1}};
+  OverlayLine top = {{40, 10}, {60, 10}, 2, {255, 0, 132, 0.5}, {0, 0, 0, 1}};
+  OverlayLine right = {{60, 10}, {60, 14}, 2, {255, 0, 132, 0.5}, {0, 0, 0, 1}};
   OverlayLine bottom = {
-      {40, 14}, {60, 14}, 1, {0, 0, 0, 0.2}, {255, 255, 255, 0.2}};
+      {40, 14}, {60, 14}, 4, {255, 0, 132, 0.5}, {0, 0, 0, 1}};
+  OverlayLine left_wall = {
+      {0, 0}, {0, 100}, 4, {255, 0, 132, 0.5}, {0, 0, 0, 1}};
+  OverlayLine top_wall = {
+      {0, 0}, {100, 0}, 4, {255, 0, 132, 0.5}, {0, 0, 0, 1}};
+  OverlayLine right_wall = {
+      {100, 0}, {100, 100}, 4, {255, 0, 132, 0.5}, {0, 0, 0, 1}};
+  OverlayLine bottom_wall = {
+      {0, 100}, {100, 100}, 4, {255, 0, 132, 0.5}, {0, 0, 0, 1}};
 
   OverlayLineArray_push(lines, left);
   OverlayLineArray_push(lines, top);
   OverlayLineArray_push(lines, right);
   OverlayLineArray_push(lines, bottom);
+  OverlayLineArray_push(lines, left_wall);
+  OverlayLineArray_push(lines, top_wall);
+  OverlayLineArray_push(lines, right_wall);
+  OverlayLineArray_push(lines, bottom_wall);
 
   OverlayTextArray *texts = calloc(1, sizeof(OverlayTextArray));
   OverlayText title_text = {{50, 12}, "Free Mode",  9,
@@ -136,11 +196,19 @@ int free_mode(void) {
   HeldEvent left = {KEY_A, false, left_interval_action};
   HeldEvent down = {KEY_S, false, down_interval_action};
   HeldEvent right = {KEY_D, false, right_interval_action};
+  HeldEvent scroll_up = {KEY_K, false, scroll_up_action};
+  HeldEvent scroll_down = {KEY_J, false, scroll_down_action};
+  HeldEvent scroll_left = {KEY_H, false, scroll_left_action};
+  HeldEvent scroll_right = {KEY_L, false, scroll_right_action};
 
   HeldEventArray_push(held, up);
   HeldEventArray_push(held, left);
   HeldEventArray_push(held, down);
   HeldEventArray_push(held, right);
+  HeldEventArray_push(held, scroll_up);
+  HeldEventArray_push(held, scroll_down);
+  HeldEventArray_push(held, scroll_left);
+  HeldEventArray_push(held, scroll_right);
 
   MacroEventArray *macro = calloc(1, sizeof(MacroEventArray));
 

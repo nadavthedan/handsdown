@@ -148,6 +148,12 @@ static int focus_bottom_right_split(struct input_state *state) {
   return 0;
 }
 
+static int exit_macro(struct input_state *state) {
+  (void)state;
+  stop_virtual_keyboard_override();
+  return 0;
+}
+
 struct overlay_state *
 grid_overlay_fourway_split_init(struct overlay_state *overlay) {
   overlay->base_background_color = (struct rgba){0.0, 0.0, 0.0, 0.5};
@@ -232,11 +238,15 @@ int grid_mode_four_way_rec_split(void) {
   MacroEvent top_right = {KEY_J, 1, focus_top_right_split};
   MacroEvent bottom_left = {KEY_D, 1, focus_bottom_left_split};
   MacroEvent bottom_right = {KEY_K, 1, focus_bottom_right_split};
+  MacroEvent exit1 = {KEY_CAPSLOCK, 1, exit_macro};
+  MacroEvent exit2 = {KEY_ESC, 1, exit_macro};
 
   MacroEventArray_push(macros, top_left);
   MacroEventArray_push(macros, top_right);
   MacroEventArray_push(macros, bottom_left);
   MacroEventArray_push(macros, bottom_right);
+  MacroEventArray_push(macros, exit1);
+  MacroEventArray_push(macros, exit2);
 
   events->macro_events = macros;
   events->held_events = NULL;
