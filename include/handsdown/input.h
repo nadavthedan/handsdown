@@ -46,10 +46,18 @@ struct input_state {
   struct overlay_state *overlay;
 };
 
-int virtual_keyboard_override(char *physical_keyboard_device_path,
+typedef int (*mode_setup_fn)(struct input_state *state);
+
+int input_stop_action(struct input_state *state);
+int run_mode(const char *keyboard_device_path, mode_setup_fn setup,
+             bool use_absolute_pointer);
+int virtual_keyboard_override(const char *physical_keyboard_device_path,
                               struct input_state *state);
 int emit(unsigned int type, unsigned int code, int value);
 int sync_output(void);
+int pointer_input_init(void);
+int pointer_input_move_to_overlay_percent(double x_percent, double y_percent);
+void pointer_input_destroy(void);
 void stop_virtual_keyboard_override(void);
 
 #endif

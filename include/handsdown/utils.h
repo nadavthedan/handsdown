@@ -7,7 +7,7 @@
     T *data;                                                                   \
     size_t len, cap;                                                           \
   } Name;                                                                      \
-  static int Name##_push(Name *a, T value) {                                   \
+  static inline int Name##_push(Name *a, T value) {                            \
     if (a->len == a->cap) {                                                    \
       size_t cap = a->cap ? a->cap * 2 : 8;                                    \
       T *p = realloc(a->data, cap * sizeof *p);                                \
@@ -18,6 +18,12 @@
     }                                                                          \
     a->data[a->len++] = value;                                                 \
     return 1;                                                                  \
+  }                                                                            \
+  static inline void Name##_free(Name *a) {                                    \
+    if (!a)                                                                    \
+      return;                                                                  \
+    free(a->data);                                                             \
+    free(a);                                                                   \
   }
 
 double middle(double a, double b);
